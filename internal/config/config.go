@@ -14,6 +14,7 @@ type Config struct {
 	Database DatabaseConfig `mapstructure:"database"`
 	Security SecurityConfig `mapstructure:"security"`
 	Logging  LoggingConfig  `mapstructure:"logging"`
+	Sync     SyncConfig     `mapstructure:"sync"`
 }
 
 // ServerConfig holds server-related configuration
@@ -29,6 +30,12 @@ type ServerConfig struct {
 
 // DatabaseConfig holds database-related configuration
 type DatabaseConfig struct {
+	Host            string        `mapstructure:"host"`
+	Port            int           `mapstructure:"port"`
+	Username        string        `mapstructure:"username"`
+	Password        string        `mapstructure:"password"`
+	Database        string        `mapstructure:"database"`
+	SSL             bool          `mapstructure:"ssl"`
 	MaxOpenConns    int           `mapstructure:"max_open_conns"`
 	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
 	ConnMaxLifetime time.Duration `mapstructure:"conn_max_lifetime"`
@@ -52,17 +59,46 @@ type LoggingConfig struct {
 	MaxAge     int    `mapstructure:"max_age"`
 }
 
+// SyncConfig holds synchronization-related configuration
+type SyncConfig struct {
+	Enabled        bool          `mapstructure:"enabled"`
+	MaxConcurrency int           `mapstructure:"max_concurrency"`
+	BatchSize      int           `mapstructure:"batch_size"`
+	RetryAttempts  int           `mapstructure:"retry_attempts"`
+	RetryDelay     time.Duration `mapstructure:"retry_delay"`
+	JobTimeout     time.Duration `mapstructure:"job_timeout"`
+	CleanupAge     time.Duration `mapstructure:"cleanup_age"`
+}
+
+// LoadOptions contains options for loading configuration
+type LoadOptions struct {
+	ConfigFile string  // Path to configuration file
+	Overrides  *Config // Command line overrides
+}
+
 // Load loads configuration from file and environment variables
 func Load() (*Config, error) {
+	return LoadWithOptions(nil)
+}
+
+// LoadWithOptions loads configuration with additional options
+func LoadWithOptions(opts *LoadOptions) (*Config, error) {
 	// Set default values
 	setDefaults()
 
 	// Set config file name and paths
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath(".")
-	viper.AddConfigPath("./config")
-	viper.AddConfigPath("/etc/db-taxi")
+
+	// If specific config file is provided, use it
+	if opts != nil && opts.ConfigFile != "" {
+		viper.SetConfigFile(opts.ConfigFile)
+	} else {
+		// Use default search paths
+		viper.AddConfigPath(".")
+		viper.AddConfigPath("./config")
+		viper.AddConfigPath("/etc/db-taxi")
+	}
 
 	// Enable environment variable support
 	viper.AutomaticEnv()
@@ -82,7 +118,43 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("error unmarshaling config: %w", err)
 	}
 
+	// Apply command line overrides
+	if opts != nil && opts.Overrides != nil {
+		applyOverrides(&config, opts.Overrides)
+	}
+
 	return &config, nil
+}
+
+// applyOverrides applies command line overrides to the configuration
+func applyOverrides(config *Config, overrides *Config) {
+	// Database overrides
+	if overrides.Database.Host != "" {
+		config.Database.Host = overrides.Database.Host
+	}
+	if overrides.Database.Port != 0 {
+		config.Database.Port = overrides.Database.Port
+	}
+	if overrides.Database.Username != "" {
+		config.Database.Username = overrides.Database.Username
+	}
+	if overrides.Database.Password != "" {
+		config.Database.Password = overrides.Database.Password
+	}
+	if overrides.Database.Database != "" {
+		config.Database.Database = overrides.Database.Database
+	}
+	if overrides.Database.SSL {
+		config.Database.SSL = overrides.Database.SSL
+	}
+
+	// Server overrides
+	if overrides.Server.Port != 0 {
+		config.Server.Port = overrides.Server.Port
+	}
+	if overrides.Server.Host != "" {
+		config.Server.Host = overrides.Server.Host
+	}
 }
 
 // setDefaults sets default configuration values
@@ -95,6 +167,12 @@ func setDefaults() {
 	viper.SetDefault("server.enable_https", false)
 
 	// Database defaults
+	viper.SetDefault("database.host", "localhost")
+	viper.SetDefault("database.port", 3306)
+	viper.SetDefault("database.username", "root")
+	viper.SetDefault("database.password", "")
+	viper.SetDefault("database.database", "")
+	viper.SetDefault("database.ssl", false)
 	viper.SetDefault("database.max_open_conns", 25)
 	viper.SetDefault("database.max_idle_conns", 5)
 	viper.SetDefault("database.conn_max_lifetime", "5m")
@@ -112,4 +190,13 @@ func setDefaults() {
 	viper.SetDefault("logging.max_size", 100)
 	viper.SetDefault("logging.max_backups", 3)
 	viper.SetDefault("logging.max_age", 28)
+
+	// Sync defaults
+	viper.SetDefault("sync.enabled", true)
+	viper.SetDefault("sync.max_concurrency", 5)
+	viper.SetDefault("sync.batch_size", 1000)
+	viper.SetDefault("sync.retry_attempts", 3)
+	viper.SetDefault("sync.retry_delay", "30s")
+	viper.SetDefault("sync.job_timeout", "1h")
+	viper.SetDefault("sync.cleanup_age", "30d")
 }

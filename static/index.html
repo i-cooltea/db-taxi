@@ -1,75 +1,600 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DB-Taxi MySQL Web Explorer</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
             background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
         }
+
         .container {
-            max-width: 800px;
+            max-width: 1200px;
             margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .card {
             background: white;
-            padding: 40px;
-            border-radius: 8px;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-        h1 {
-            color: #333;
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .loading {
             text-align: center;
-            margin-bottom: 30px;
-        }
-        .status {
-            background: #e8f5e8;
-            border: 1px solid #4caf50;
-            color: #2e7d32;
-            padding: 15px;
-            border-radius: 4px;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .info {
-            background: #f0f0f0;
-            padding: 20px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-        }
-        .info h3 {
-            margin-top: 0;
-            color: #555;
-        }
-        .info p {
-            margin: 5px 0;
+            padding: 2rem;
             color: #666;
+        }
+
+        .error {
+            background-color: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+        }
+
+        .success {
+            background-color: #efe;
+            border: 1px solid #cfc;
+            color: #3c3;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+        }
+
+        .database-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .database-item {
+            background: #f8f9ff;
+            border: 2px solid #e1e5f2;
+            border-radius: 8px;
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .database-item:hover {
+            border-color: #667eea;
+            background: #f0f2ff;
+            transform: translateY(-2px);
+        }
+
+        .database-item.selected {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+
+        .database-name {
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .table-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 0.5rem;
+        }
+
+        .table-item {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .table-item:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .table-info {
+            margin-top: 2rem;
+        }
+
+        .table-details {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .columns-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .columns-table th,
+        .columns-table td {
+            border: 1px solid #ddd;
+            padding: 0.5rem;
+            text-align: left;
+        }
+
+        .columns-table th {
+            background-color: #667eea;
+            color: white;
+        }
+
+        .columns-table tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 0.25rem;
+            transition: background 0.2s ease;
+        }
+
+        .btn:hover {
+            background: #5a6fd8;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .stat-item {
+            background: #f8f9ff;
+            padding: 1rem;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .status-connected {
+            background-color: #4caf50;
+        }
+
+        .status-disconnected {
+            background-color: #f44336;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>DB-Taxi MySQL Web Explorer</h1>
-        
-        <div class="status">
-            ✅ Server is running successfully
+        <div class="header">
+            <h1>🗄️ DB-Taxi MySQL Web Explorer</h1>
+            <p>浏览和探索您的MySQL数据库结构</p>
         </div>
-        
-        <div class="info">
-            <h3>Welcome to DB-Taxi MySQL Web Explorer</h3>
-            <p>This is a web-based MySQL database management tool.</p>
-            <p><strong>Status:</strong> Basic server infrastructure is ready</p>
-            <p><strong>Version:</strong> 1.0.0</p>
-            <p><strong>Next Steps:</strong> Database connection and query functionality will be implemented in subsequent tasks</p>
+
+        <div class="card">
+            <h2>🔌 连接状态</h2>
+            <div id="connection-status" class="connection-status">
+                <div class="status-indicator status-disconnected"></div>
+                <span>正在检查连接...</span>
+            </div>
+            <button id="test-connection-btn" class="btn" onclick="testConnection()">测试连接</button>
         </div>
-        
-        <div class="info">
-            <h3>API Endpoints</h3>
-            <p><strong>Health Check:</strong> <a href="/health">/health</a></p>
-            <p><strong>Status:</strong> <a href="/api/status">/api/status</a></p>
+
+        <div id="databases-section" class="card" style="display: none;">
+            <h2>📚 数据库列表</h2>
+            <div id="databases-loading" class="loading">正在加载数据库...</div>
+            <div id="databases-error" class="error" style="display: none;"></div>
+            <div id="databases-list" class="database-list" style="display: none;"></div>
+        </div>
+
+        <div id="tables-section" class="card" style="display: none;">
+            <h2>📋 表列表</h2>
+            <div id="tables-loading" class="loading">正在加载表...</div>
+            <div id="tables-error" class="error" style="display: none;"></div>
+            <div id="tables-list" class="table-list"></div>
+        </div>
+
+        <div id="table-info-section" class="card" style="display: none;">
+            <h2>🔍 表详细信息</h2>
+            <div id="table-info-content"></div>
         </div>
     </div>
+
+    <script>
+        let selectedDatabase = null;
+        let selectedTable = null;
+
+        // Check connection status on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkConnectionStatus();
+        });
+
+        async function checkConnectionStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const result = await response.json();
+                
+                if (result.success && result.data.database && result.data.database.connected) {
+                    updateConnectionStatus(true, '数据库连接正常');
+                    loadDatabases();
+                } else {
+                    updateConnectionStatus(false, result.data.database ? result.data.database.error : '数据库未连接');
+                }
+            } catch (error) {
+                updateConnectionStatus(false, '无法连接到服务器: ' + error.message);
+            }
+        }
+
+        function updateConnectionStatus(connected, message) {
+            const statusEl = document.getElementById('connection-status');
+            const indicator = statusEl.querySelector('.status-indicator');
+            const text = statusEl.querySelector('span');
+            
+            if (connected) {
+                indicator.className = 'status-indicator status-connected';
+                text.textContent = message;
+                document.getElementById('databases-section').style.display = 'block';
+            } else {
+                indicator.className = 'status-indicator status-disconnected';
+                text.textContent = message;
+                document.getElementById('databases-section').style.display = 'none';
+            }
+        }
+
+        async function testConnection() {
+            const btn = document.getElementById('test-connection-btn');
+            btn.disabled = true;
+            btn.textContent = '测试中...';
+            
+            try {
+                const response = await fetch('/api/connection/test');
+                const result = await response.json();
+                
+                if (result.success) {
+                    updateConnectionStatus(true, '连接测试成功');
+                    loadDatabases();
+                } else {
+                    updateConnectionStatus(false, '连接测试失败: ' + result.error);
+                }
+            } catch (error) {
+                updateConnectionStatus(false, '连接测试失败: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '测试连接';
+            }
+        }
+
+        async function loadDatabases() {
+            const loadingEl = document.getElementById('databases-loading');
+            const errorEl = document.getElementById('databases-error');
+            const listEl = document.getElementById('databases-list');
+            
+            loadingEl.style.display = 'block';
+            errorEl.style.display = 'none';
+            listEl.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/databases');
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayDatabases(result.data);
+                } else {
+                    showError('databases-error', result.error);
+                }
+            } catch (error) {
+                showError('databases-error', '无法加载数据库列表: ' + error.message);
+            }
+            
+            loadingEl.style.display = 'none';
+        }
+
+        function displayDatabases(databases) {
+            const listEl = document.getElementById('databases-list');
+            listEl.style.display = 'grid';
+            listEl.innerHTML = '';
+            
+            if (databases.length === 0) {
+                listEl.innerHTML = '<div class="database-item">没有找到数据库</div>';
+                return;
+            }
+            
+            databases.forEach(db => {
+                const dbEl = document.createElement('div');
+                dbEl.className = 'database-item';
+                dbEl.innerHTML = `
+                    <div class="database-name">${db}</div>
+                    <div>点击查看表</div>
+                `;
+                dbEl.onclick = () => selectDatabase(db, dbEl);
+                listEl.appendChild(dbEl);
+            });
+        }
+
+        async function selectDatabase(database, element) {
+            // Update UI
+            document.querySelectorAll('.database-item').forEach(el => el.classList.remove('selected'));
+            element.classList.add('selected');
+            
+            selectedDatabase = database;
+            selectedTable = null;
+            
+            // Hide table info section
+            document.getElementById('table-info-section').style.display = 'none';
+            
+            // Show tables section
+            const tablesSection = document.getElementById('tables-section');
+            tablesSection.style.display = 'block';
+            
+            // Load tables
+            await loadTables(database);
+        }
+
+        async function loadTables(database) {
+            const loadingEl = document.getElementById('tables-loading');
+            const errorEl = document.getElementById('tables-error');
+            const listEl = document.getElementById('tables-list');
+            
+            loadingEl.style.display = 'block';
+            errorEl.style.display = 'none';
+            listEl.innerHTML = '';
+            
+            try {
+                const response = await fetch(`/api/databases/${database}/tables`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayTables(result.data);
+                } else {
+                    showError('tables-error', result.error);
+                }
+            } catch (error) {
+                showError('tables-error', '无法加载表列表: ' + error.message);
+            }
+            
+            loadingEl.style.display = 'none';
+        }
+
+        function displayTables(tables) {
+            const listEl = document.getElementById('tables-list');
+            
+            if (tables.length === 0) {
+                listEl.innerHTML = '<div class="table-item">此数据库中没有表</div>';
+                return;
+            }
+            
+            tables.forEach(table => {
+                const tableEl = document.createElement('div');
+                tableEl.className = 'table-item';
+                tableEl.textContent = table;
+                tableEl.onclick = () => selectTable(table);
+                listEl.appendChild(tableEl);
+            });
+        }
+
+        async function selectTable(table) {
+            selectedTable = table;
+            
+            // Show table info section
+            const tableInfoSection = document.getElementById('table-info-section');
+            tableInfoSection.style.display = 'block';
+            
+            // Load table info
+            await loadTableInfo(selectedDatabase, table);
+        }
+
+        async function loadTableInfo(database, table) {
+            const contentEl = document.getElementById('table-info-content');
+            contentEl.innerHTML = '<div class="loading">正在加载表信息...</div>';
+            
+            try {
+                const response = await fetch(`/api/databases/${database}/tables/${table}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayTableInfo(result.data);
+                } else {
+                    contentEl.innerHTML = `<div class="error">加载表信息失败: ${result.error}</div>`;
+                }
+            } catch (error) {
+                contentEl.innerHTML = `<div class="error">无法加载表信息: ${error.message}</div>`;
+            }
+        }
+
+        function displayTableInfo(tableInfo) {
+            const contentEl = document.getElementById('table-info-content');
+            
+            let html = `
+                <h3>${tableInfo.schema}.${tableInfo.name}</h3>
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-value">${tableInfo.row_count.toLocaleString()}</div>
+                        <div class="stat-label">估计行数</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${tableInfo.columns.length}</div>
+                        <div class="stat-label">列数</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${tableInfo.indexes.length}</div>
+                        <div class="stat-label">索引数</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${tableInfo.engine}</div>
+                        <div class="stat-label">存储引擎</div>
+                    </div>
+                </div>
+                
+                <div class="table-details">
+                    <h4>📝 列信息</h4>
+                    <table class="columns-table">
+                        <thead>
+                            <tr>
+                                <th>列名</th>
+                                <th>类型</th>
+                                <th>可空</th>
+                                <th>键</th>
+                                <th>默认值</th>
+                                <th>额外</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            tableInfo.columns.forEach(col => {
+                html += `
+                    <tr>
+                        <td><strong>${col.name}</strong></td>
+                        <td>${col.type}</td>
+                        <td>${col.nullable ? '是' : '否'}</td>
+                        <td>${col.key || '-'}</td>
+                        <td>${col.default || 'NULL'}</td>
+                        <td>${col.extra || '-'}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div style="margin-top: 1rem;">
+                    <button class="btn" onclick="loadTableData()">📊 查看数据</button>
+                </div>
+            `;
+            
+            contentEl.innerHTML = html;
+        }
+
+        async function loadTableData() {
+            if (!selectedDatabase || !selectedTable) return;
+            
+            try {
+                const response = await fetch(`/api/databases/${selectedDatabase}/tables/${selectedTable}/data?limit=10`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayTableData(result.data);
+                } else {
+                    alert('加载数据失败: ' + result.error);
+                }
+            } catch (error) {
+                alert('无法加载数据: ' + error.message);
+            }
+        }
+
+        function displayTableData(data) {
+            if (data.length === 0) {
+                alert('表中没有数据');
+                return;
+            }
+            
+            // Create a new window to display data
+            const newWindow = window.open('', '_blank', 'width=800,height=600');
+            newWindow.document.write(`
+                <html>
+                <head>
+                    <title>${selectedDatabase}.${selectedTable} - 数据</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        table { border-collapse: collapse; width: 100%; }
+                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                        th { background-color: #f2f2f2; }
+                        tr:nth-child(even) { background-color: #f9f9f9; }
+                        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; }
+                    </style>
+                </head>
+                <body>
+                    <h2>${selectedDatabase}.${selectedTable} - 数据预览</h2>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                </body>
+                </html>
+            `);
+        }
+
+        function showError(elementId, message) {
+            const errorEl = document.getElementById(elementId);
+            const loadingEl = document.getElementById(elementId.replace('-error', '-loading'));
+            
+            if (loadingEl) loadingEl.style.display = 'none';
+            errorEl.style.display = 'block';
+            errorEl.textContent = message;
+        }
+    </script>
 </body>
 </html>

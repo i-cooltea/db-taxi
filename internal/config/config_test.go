@@ -220,3 +220,148 @@ server:
 		t.Errorf("Expected host from config file 'localhost', got %s", cfg.Server.Host)
 	}
 }
+func TestLoadWithOptions_CustomConfigFile(t *testing.T) {
+	// Create a temporary config file
+	tempFile, err := os.CreateTemp("", "test-config-*.yaml")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+
+	// Write test configuration
+	configContent := `
+server:
+  port: 9999
+  host: "test-host"
+database:
+  host: "test-db-host"
+  port: 3307
+  username: "test-user"
+  password: "test-pass"
+  database: "test-db"
+logging:
+  level: "debug"
+`
+	if _, err := tempFile.WriteString(configContent); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+	tempFile.Close()
+
+	// Load configuration with custom file
+	cfg, err := LoadWithOptions(&LoadOptions{
+		ConfigFile: tempFile.Name(),
+	})
+	if err != nil {
+		t.Fatalf("LoadWithOptions() error = %v", err)
+	}
+
+	// Verify configuration was loaded correctly
+	if cfg.Server.Port != 9999 {
+		t.Errorf("Expected server port 9999, got %d", cfg.Server.Port)
+	}
+	if cfg.Server.Host != "test-host" {
+		t.Errorf("Expected server host 'test-host', got %s", cfg.Server.Host)
+	}
+	if cfg.Database.Host != "test-db-host" {
+		t.Errorf("Expected database host 'test-db-host', got %s", cfg.Database.Host)
+	}
+	if cfg.Database.Port != 3307 {
+		t.Errorf("Expected database port 3307, got %d", cfg.Database.Port)
+	}
+}
+
+func TestLoadWithOptions_CommandLineOverrides(t *testing.T) {
+	// Create overrides
+	overrides := &Config{
+		Database: DatabaseConfig{
+			Host:     "override-host",
+			Port:     4444,
+			Username: "override-user",
+			Password: "override-pass",
+		},
+		Server: ServerConfig{
+			Port: 7777,
+		},
+	}
+
+	// Load with overrides
+	cfg, err := LoadWithOptions(&LoadOptions{
+		Overrides: overrides,
+	})
+	if err != nil {
+		t.Fatalf("LoadWithOptions() error = %v", err)
+	}
+
+	// Verify overrides were applied
+	if cfg.Database.Host != "override-host" {
+		t.Errorf("Expected database host 'override-host', got %s", cfg.Database.Host)
+	}
+	if cfg.Database.Port != 4444 {
+		t.Errorf("Expected database port 4444, got %d", cfg.Database.Port)
+	}
+	if cfg.Database.Username != "override-user" {
+		t.Errorf("Expected database username 'override-user', got %s", cfg.Database.Username)
+	}
+	if cfg.Server.Port != 7777 {
+		t.Errorf("Expected server port 7777, got %d", cfg.Server.Port)
+	}
+}
+
+func TestLoadWithOptions_ConfigFileWithOverrides(t *testing.T) {
+	// Create a temporary config file
+	tempFile, err := os.CreateTemp("", "test-config-*.yaml")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+
+	// Write test configuration
+	configContent := `
+server:
+  port: 8888
+database:
+  host: "config-host"
+  port: 3306
+  username: "config-user"
+`
+	if _, err := tempFile.WriteString(configContent); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+	tempFile.Close()
+
+	// Create overrides (should override config file values)
+	overrides := &Config{
+		Database: DatabaseConfig{
+			Host:     "override-host",
+			Password: "override-pass",
+		},
+		Server: ServerConfig{
+			Port: 9999,
+		},
+	}
+
+	// Load with both config file and overrides
+	cfg, err := LoadWithOptions(&LoadOptions{
+		ConfigFile: tempFile.Name(),
+		Overrides:  overrides,
+	})
+	if err != nil {
+		t.Fatalf("LoadWithOptions() error = %v", err)
+	}
+
+	// Verify config file values are loaded
+	if cfg.Database.Username != "config-user" {
+		t.Errorf("Expected database username 'config-user', got %s", cfg.Database.Username)
+	}
+
+	// Verify overrides take precedence
+	if cfg.Database.Host != "override-host" {
+		t.Errorf("Expected database host 'override-host', got %s", cfg.Database.Host)
+	}
+	if cfg.Database.Password != "override-pass" {
+		t.Errorf("Expected database password 'override-pass', got %s", cfg.Database.Password)
+	}
+	if cfg.Server.Port != 9999 {
+		t.Errorf("Expected server port 9999, got %d", cfg.Server.Port)
+	}
+}

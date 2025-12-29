@@ -10,14 +10,19 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"db-taxi/internal/config"
+	"db-taxi/internal/database"
+	"db-taxi/internal/sync"
 )
 
 // Server represents the HTTP server
 type Server struct {
-	config     *config.Config
-	engine     *gin.Engine
-	httpServer *http.Server
-	logger     *logrus.Logger
+	config      *config.Config
+	engine      *gin.Engine
+	httpServer  *http.Server
+	logger      *logrus.Logger
+	dbPool      *database.ConnectionPool
+	explorer    *database.SchemaExplorer
+	syncManager *sync.Manager
 }
 
 // New creates a new server instance
@@ -55,6 +60,18 @@ func New(cfg *config.Config) *Server {
 		logger: logger,
 	}
 
+	// Initialize database connection
+	if err := server.initDatabase(); err != nil {
+		logger.WithError(err).Warn("Failed to initialize database connection")
+		// Continue without database - will show connection error in UI
+	}
+
+	// Initialize sync system
+	if err := server.initSyncSystem(); err != nil {
+		logger.WithError(err).Warn("Failed to initialize sync system")
+		// Continue without sync system - sync features will be disabled
+	}
+
 	// Register routes
 	server.registerRoutes()
 
@@ -84,6 +101,21 @@ func (s *Server) Start() error {
 // Stop gracefully stops the HTTP server
 func (s *Server) Stop(ctx context.Context) error {
 	s.logger.Info("Stopping server...")
+
+	// Shutdown sync system
+	if s.syncManager != nil {
+		if err := s.syncManager.Shutdown(ctx); err != nil {
+			s.logger.WithError(err).Error("Failed to shutdown sync system")
+		}
+	}
+
+	// Close database connection
+	if s.dbPool != nil {
+		if err := s.dbPool.Close(); err != nil {
+			s.logger.WithError(err).Error("Failed to close database connection")
+		}
+	}
+
 	return s.httpServer.Shutdown(ctx)
 }
 
@@ -96,11 +128,25 @@ func (s *Server) registerRoutes() {
 	api := s.engine.Group("/api")
 	{
 		api.GET("/status", s.getStatus)
+		api.GET("/connection/test", s.testConnection)
+		api.GET("/databases", s.getDatabases)
+		api.GET("/databases/:database/tables", s.getTables)
+		api.GET("/databases/:database/tables/:table", s.getTableInfo)
+		api.GET("/databases/:database/tables/:table/data", s.getTableData)
+
+		// Sync API routes
+		if s.syncManager != nil {
+			s.registerSyncRoutes(api)
+		}
 	}
 
-	// Serve static files (will be implemented later)
+	// Serve static files
 	s.engine.Static("/static", "./static")
-	s.engine.StaticFile("/", "./static/index.html")
+
+	// Serve index.html at root path
+	s.engine.GET("/", func(c *gin.Context) {
+		c.File("./static/index.html")
+	})
 }
 
 // healthCheck handles health check requests
@@ -114,14 +160,806 @@ func (s *Server) healthCheck(c *gin.Context) {
 
 // getStatus handles status requests
 func (s *Server) getStatus(c *gin.Context) {
+	status := gin.H{
+		"server": gin.H{
+			"status":  "running",
+			"version": "1.0.0",
+		},
+	}
+
+	// Add database status if available
+	if s.dbPool != nil {
+		status["database"] = gin.H{
+			"connected": true,
+			"stats":     s.dbPool.Stats(),
+		}
+	} else {
+		status["database"] = gin.H{
+			"connected": false,
+			"error":     "Database connection not initialized",
+		}
+	}
+
+	// Add sync system status if available
+	if s.syncManager != nil {
+		if err := s.syncManager.HealthCheck(c.Request.Context()); err != nil {
+			status["sync"] = gin.H{
+				"enabled": false,
+				"error":   err.Error(),
+			}
+		} else {
+			syncStats, err := s.syncManager.GetStats(c.Request.Context())
+			if err != nil {
+				s.logger.WithError(err).Warn("Failed to get sync stats")
+				syncStats = gin.H{"error": "Failed to get stats"}
+			}
+			status["sync"] = gin.H{
+				"enabled": true,
+				"stats":   syncStats,
+			}
+		}
+	} else {
+		status["sync"] = gin.H{
+			"enabled": false,
+			"error":   "Sync system not initialized",
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    status,
+	})
+}
+
+// initDatabase initializes the database connection
+func (s *Server) initDatabase() error {
+	// Create database connection pool
+	pool, err := database.NewConnectionPool(&s.config.Database, s.logger)
+	if err != nil {
+		return fmt.Errorf("failed to create database connection pool: %w", err)
+	}
+
+	s.dbPool = pool
+
+	// Create schema explorer
+	s.explorer = database.NewSchemaExplorer(pool.GetDB(), s.logger)
+
+	return nil
+}
+
+// testConnection tests the database connection
+func (s *Server) testConnection(c *gin.Context) {
+	if s.dbPool == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Database connection not initialized",
+		})
+		return
+	}
+
+	if err := s.dbPool.TestConnection(); err != nil {
+		s.logger.WithError(err).Error("Database connection test failed")
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
-			"server": gin.H{
-				"status":  "running",
-				"uptime":  time.Since(time.Now()).String(), // Will be properly calculated later
-				"version": "1.0.0",
-			},
+			"status": "connected",
+			"stats":  s.dbPool.Stats(),
 		},
+	})
+}
+
+// getDatabases returns list of databases
+func (s *Server) getDatabases(c *gin.Context) {
+	if s.explorer == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Database connection not available",
+		})
+		return
+	}
+
+	databases, err := s.explorer.GetDatabases()
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get databases")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    databases,
+		"meta": gin.H{
+			"total": len(databases),
+		},
+	})
+}
+
+// getTables returns list of tables in a database
+func (s *Server) getTables(c *gin.Context) {
+	if s.explorer == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Database connection not available",
+		})
+		return
+	}
+
+	database := c.Param("database")
+	tables, err := s.explorer.GetTables(database)
+	if err != nil {
+		s.logger.WithError(err).WithField("database", database).Error("Failed to get tables")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    tables,
+		"meta": gin.H{
+			"total": len(tables),
+		},
+	})
+}
+
+// getTableInfo returns detailed information about a table
+func (s *Server) getTableInfo(c *gin.Context) {
+	if s.explorer == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Database connection not available",
+		})
+		return
+	}
+
+	database := c.Param("database")
+	table := c.Param("table")
+
+	tableInfo, err := s.explorer.GetTableInfo(database, table)
+	if err != nil {
+		s.logger.WithError(err).WithFields(logrus.Fields{
+			"database": database,
+			"table":    table,
+		}).Error("Failed to get table info")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    tableInfo,
+	})
+}
+
+// getTableData returns data from a table
+func (s *Server) getTableData(c *gin.Context) {
+	if s.explorer == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Database connection not available",
+		})
+		return
+	}
+
+	database := c.Param("database")
+	table := c.Param("table")
+
+	// Parse query parameters
+	limit := 10
+	offset := 0
+	if l := c.Query("limit"); l != "" {
+		if parsed, err := fmt.Sscanf(l, "%d", &limit); err != nil || parsed != 1 {
+			limit = 10
+		}
+	}
+	if o := c.Query("offset"); o != "" {
+		if parsed, err := fmt.Sscanf(o, "%d", &offset); err != nil || parsed != 1 {
+			offset = 0
+		}
+	}
+
+	// Validate limits
+	if limit <= 0 {
+		limit = 10
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	data, err := s.explorer.GetTableData(database, table, offset, limit)
+	if err != nil {
+		s.logger.WithError(err).WithFields(logrus.Fields{
+			"database": database,
+			"table":    table,
+			"limit":    limit,
+			"offset":   offset,
+		}).Error("Failed to get table data")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    data,
+		"meta": gin.H{
+			"limit":  limit,
+			"offset": offset,
+			"count":  len(data),
+		},
+	})
+}
+
+// initSyncSystem initializes the sync system
+func (s *Server) initSyncSystem() error {
+	if s.dbPool == nil {
+		return fmt.Errorf("database connection required for sync system")
+	}
+
+	// Create sync manager
+	syncManager, err := sync.NewManager(s.config, s.dbPool.GetDB(), s.logger)
+	if err != nil {
+		return fmt.Errorf("failed to create sync manager: %w", err)
+	}
+
+	// Initialize sync system
+	ctx := context.Background()
+	if err := syncManager.Initialize(ctx); err != nil {
+		return fmt.Errorf("failed to initialize sync system: %w", err)
+	}
+
+	s.syncManager = syncManager
+	return nil
+}
+
+// registerSyncRoutes registers sync-related API routes
+func (s *Server) registerSyncRoutes(api *gin.RouterGroup) {
+	sync := api.Group("/sync")
+	{
+		// Connection management routes
+		connections := sync.Group("/connections")
+		{
+			connections.GET("", s.getSyncConnections)
+			connections.POST("", s.createSyncConnection)
+			connections.GET("/:id", s.getSyncConnection)
+			connections.PUT("/:id", s.updateSyncConnection)
+			connections.DELETE("/:id", s.deleteSyncConnection)
+			connections.POST("/:id/test", s.testSyncConnection)
+		}
+
+		// Sync configuration routes
+		configs := sync.Group("/configs")
+		{
+			configs.GET("", s.getSyncConfigs)
+			configs.POST("", s.createSyncConfig)
+			configs.GET("/:id", s.getSyncConfig)
+			configs.PUT("/:id", s.updateSyncConfig)
+			configs.DELETE("/:id", s.deleteSyncConfig)
+		}
+
+		// Job management routes
+		jobs := sync.Group("/jobs")
+		{
+			jobs.GET("", s.getSyncJobs)
+			jobs.POST("", s.startSyncJob)
+			jobs.GET("/:id", s.getSyncJob)
+			jobs.POST("/:id/stop", s.stopSyncJob)
+			jobs.GET("/:id/logs", s.getSyncJobLogs)
+		}
+
+		// System routes
+		sync.GET("/status", s.getSyncStatus)
+		sync.GET("/stats", s.getSyncStats)
+	}
+}
+
+// Sync connection handlers
+
+func (s *Server) getSyncConnections(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	connections, err := s.syncManager.GetConnectionManager().GetConnections(c.Request.Context())
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get sync connections")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    connections,
+		"meta": gin.H{
+			"total": len(connections),
+		},
+	})
+}
+
+func (s *Server) createSyncConnection(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	var config sync.ConnectionConfig
+	if err := c.ShouldBindJSON(&config); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	connection, err := s.syncManager.GetConnectionManager().AddConnection(c.Request.Context(), &config)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to create sync connection")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"data":    connection,
+	})
+}
+
+func (s *Server) getSyncConnection(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	id := c.Param("id")
+	connection, err := s.syncManager.GetConnectionManager().GetConnection(c.Request.Context(), id)
+	if err != nil {
+		s.logger.WithError(err).WithField("id", id).Error("Failed to get sync connection")
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    connection,
+	})
+}
+
+func (s *Server) updateSyncConnection(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	id := c.Param("id")
+	var config sync.ConnectionConfig
+	if err := c.ShouldBindJSON(&config); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	if err := s.syncManager.GetConnectionManager().UpdateConnection(c.Request.Context(), id, &config); err != nil {
+		s.logger.WithError(err).WithField("id", id).Error("Failed to update sync connection")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Connection updated successfully",
+	})
+}
+
+func (s *Server) deleteSyncConnection(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	id := c.Param("id")
+	if err := s.syncManager.GetConnectionManager().DeleteConnection(c.Request.Context(), id); err != nil {
+		s.logger.WithError(err).WithField("id", id).Error("Failed to delete sync connection")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Connection deleted successfully",
+	})
+}
+
+func (s *Server) testSyncConnection(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	id := c.Param("id")
+	status, err := s.syncManager.GetConnectionManager().TestConnection(c.Request.Context(), id)
+	if err != nil {
+		s.logger.WithError(err).WithField("id", id).Error("Failed to test sync connection")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    status,
+	})
+}
+
+// Sync configuration handlers
+
+func (s *Server) getSyncConfigs(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	connectionID := c.Query("connection_id")
+	if connectionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "connection_id parameter is required",
+		})
+		return
+	}
+
+	configs, err := s.syncManager.GetSyncManager().GetSyncConfigs(c.Request.Context(), connectionID)
+	if err != nil {
+		s.logger.WithError(err).WithField("connection_id", connectionID).Error("Failed to get sync configs")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    configs,
+		"meta": gin.H{
+			"total": len(configs),
+		},
+	})
+}
+
+func (s *Server) createSyncConfig(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	var config sync.SyncConfig
+	if err := c.ShouldBindJSON(&config); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	if err := s.syncManager.GetSyncManager().CreateSyncConfig(c.Request.Context(), &config); err != nil {
+		s.logger.WithError(err).Error("Failed to create sync config")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"data":    config,
+	})
+}
+
+func (s *Server) getSyncConfig(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	id := c.Param("id")
+	config, err := s.syncManager.GetSyncManager().GetSyncConfig(c.Request.Context(), id)
+	if err != nil {
+		s.logger.WithError(err).WithField("id", id).Error("Failed to get sync config")
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    config,
+	})
+}
+
+func (s *Server) updateSyncConfig(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	id := c.Param("id")
+	var config sync.SyncConfig
+	if err := c.ShouldBindJSON(&config); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	if err := s.syncManager.GetSyncManager().UpdateSyncConfig(c.Request.Context(), id, &config); err != nil {
+		s.logger.WithError(err).WithField("id", id).Error("Failed to update sync config")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Sync config updated successfully",
+	})
+}
+
+func (s *Server) deleteSyncConfig(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	id := c.Param("id")
+	if err := s.syncManager.GetSyncManager().DeleteSyncConfig(c.Request.Context(), id); err != nil {
+		s.logger.WithError(err).WithField("id", id).Error("Failed to delete sync config")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Sync config deleted successfully",
+	})
+}
+
+// Job management handlers
+
+func (s *Server) getSyncJobs(c *gin.Context) {
+	// TODO: Implement job listing
+	c.JSON(http.StatusNotImplemented, gin.H{
+		"success": false,
+		"error":   "Job listing not implemented yet",
+	})
+}
+
+func (s *Server) startSyncJob(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	var request struct {
+		ConfigID string `json:"config_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	job, err := s.syncManager.GetSyncManager().StartSync(c.Request.Context(), request.ConfigID)
+	if err != nil {
+		s.logger.WithError(err).WithField("config_id", request.ConfigID).Error("Failed to start sync job")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"data":    job,
+	})
+}
+
+func (s *Server) getSyncJob(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	id := c.Param("id")
+	job, err := s.syncManager.GetSyncManager().GetSyncStatus(c.Request.Context(), id)
+	if err != nil {
+		s.logger.WithError(err).WithField("id", id).Error("Failed to get sync job")
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    job,
+	})
+}
+
+func (s *Server) stopSyncJob(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	id := c.Param("id")
+	if err := s.syncManager.GetSyncManager().StopSync(c.Request.Context(), id); err != nil {
+		s.logger.WithError(err).WithField("id", id).Error("Failed to stop sync job")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Sync job stop requested",
+	})
+}
+
+func (s *Server) getSyncJobLogs(c *gin.Context) {
+	// TODO: Implement job logs retrieval
+	c.JSON(http.StatusNotImplemented, gin.H{
+		"success": false,
+		"error":   "Job logs not implemented yet",
+	})
+}
+
+// System status handlers
+
+func (s *Server) getSyncStatus(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	if err := s.syncManager.HealthCheck(c.Request.Context()); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"status":    "healthy",
+			"timestamp": time.Now().UTC(),
+		},
+	})
+}
+
+func (s *Server) getSyncStats(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	stats, err := s.syncManager.GetStats(c.Request.Context())
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get sync stats")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    stats,
 	})
 }

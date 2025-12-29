@@ -1,98 +1,292 @@
 # DB-Taxi MySQL Web Explorer
 
-A web-based MySQL database management tool built with Go and Gin framework.
+![image](static/logo.jpeg)
 
-## Features
+DB-Taxi 是一个基于 Web 的 MySQL 数据库管理和浏览工具，提供直观的用户界面来探索数据库结构、查看表信息和数据。
 
-- Web-based MySQL database management
-- RESTful API for database operations
-- Configurable via YAML files and environment variables
-- Health check and monitoring endpoints
-- Graceful shutdown support
+## 功能特性
 
-## Quick Start
+- 🔌 **数据库连接管理** - 支持 MySQL 数据库连接，包括连接池管理
+- 📚 **数据库浏览** - 列出所有可用的数据库
+- 📋 **表结构查看** - 查看表的详细信息，包括列、索引、约束等
+- 📊 **数据预览** - 支持分页查看表数据
+- 🌐 **Web 界面** - 现代化的响应式 Web 界面
+- ⚡ **高性能** - 基于 Go 语言和 Gin 框架，支持高并发
+- 🔧 **配置灵活** - 支持配置文件和环境变量配置
 
-### Prerequisites
+## 快速开始
 
-- Go 1.21 or later
-- MySQL database (for connection testing)
+### 1. 配置数据库连接
 
-### Installation
+有多种方式来配置数据库连接：
 
-1. Clone the repository
-2. Navigate to the project directory
-3. Install dependencies:
-   ```bash
-   go mod tidy
-   ```
-
-### Configuration
-
-1. Copy the example configuration file:
-   ```bash
-   cp config.yaml.example config.yaml
-   ```
-
-2. Edit `config.yaml` to match your environment
-
-3. Alternatively, use environment variables with `DBT_` prefix:
-   ```bash
-   export DBT_SERVER_PORT=8080
-   export DBT_LOGGING_LEVEL=debug
-   ```
-
-### Running
-
-Start the server:
+#### 方式1: 使用配置文件
 ```bash
-go run main.go
+# 复制配置文件模板
+cp config.yaml.example config.yaml
+
+# 编辑配置文件
+vim config.yaml
 ```
 
-The server will start on `http://localhost:8080` by default.
+#### 方式2: 使用命令行参数
+```bash
+./db-taxi -host localhost -port 3306 -user root -password secret -database mydb
+```
 
-### API Endpoints
+#### 方式3: 使用环境变量
+```bash
+export DBT_DATABASE_HOST=localhost
+export DBT_DATABASE_PORT=3306
+export DBT_DATABASE_USERNAME=root
+export DBT_DATABASE_PASSWORD=secret
+export DBT_DATABASE_DATABASE=mydb
+./db-taxi
+```
 
-- `GET /health` - Health check endpoint
-- `GET /api/status` - Server status information
-- `GET /` - Web interface (static files)
+#### 方式4: 指定自定义配置文件
+```bash
+./db-taxi -config /path/to/your/config.yaml
+```
 
-## Configuration Options
+### 2. 构建和运行
 
-### Server Configuration
-- `server.port`: HTTP server port (default: 8080)
-- `server.host`: HTTP server host (default: 0.0.0.0)
-- `server.read_timeout`: HTTP read timeout (default: 30s)
-- `server.write_timeout`: HTTP write timeout (default: 30s)
-- `server.enable_https`: Enable HTTPS (default: false)
+```bash
+# 安装依赖
+go mod tidy
 
-### Database Configuration
-- `database.max_open_conns`: Maximum open connections (default: 25)
-- `database.max_idle_conns`: Maximum idle connections (default: 5)
-- `database.conn_max_lifetime`: Connection max lifetime (default: 5m)
-- `database.query_timeout`: Query timeout (default: 30s)
+# 构建项目
+go build -o db-taxi .
 
-### Security Configuration
-- `security.session_timeout`: Session timeout (default: 30m)
-- `security.read_only_mode`: Enable read-only mode (default: false)
-- `security.enable_audit`: Enable audit logging (default: true)
+# 运行（使用默认配置）
+./db-taxi
 
-### Logging Configuration
-- `logging.level`: Log level (debug, info, warn, error) (default: info)
-- `logging.format`: Log format (json, text) (default: json)
-- `logging.output`: Log output (stdout, stderr, or file path) (default: stdout)
+# 或使用命令行参数
+./db-taxi -host localhost -user root -password secret -database mydb -server-port 9090
+```
 
-## Development
+### 3. 访问 Web 界面
 
-This project follows the implementation plan defined in the specification documents. The current implementation includes:
+打开浏览器访问：http://localhost:8080
 
-- ✅ Project initialization and basic architecture setup
-- ⏳ Database connection management (next task)
-- ⏳ Session management system
-- ⏳ Database metadata explorer
-- ⏳ SQL query engine
-- ⏳ Data export functionality
-- ⏳ Web interface and user experience
+## 命令行选项
 
-## License
+```bash
+db-taxi [options]
 
-This project is part of the DB-Taxi MySQL Web Explorer implementation.
+配置选项:
+  -config string      指定配置文件路径
+  -host string        数据库主机地址
+  -port int           数据库端口
+  -user string        数据库用户名
+  -password string    数据库密码
+  -database string    数据库名称
+  -ssl                启用SSL连接
+  -server-port int    Web服务器端口
+  -help               显示帮助信息
+```
+
+## 使用示例
+
+### 基本使用
+```bash
+# 使用默认配置文件
+./db-taxi
+
+# 显示帮助
+./db-taxi -help
+```
+
+### 指定配置文件
+```bash
+# 使用自定义配置文件
+./db-taxi -config /etc/db-taxi/production.yaml
+
+# 使用预设的配置文件
+./db-taxi -config configs/local.yaml      # 本地开发
+./db-taxi -config configs/production.yaml # 生产环境
+./db-taxi -config configs/docker.yaml     # Docker环境
+```
+
+### 命令行参数覆盖
+```bash
+# 完全通过命令行指定
+./db-taxi -host 192.168.1.100 -port 3306 -user admin -password secret123 -database myapp
+
+# 使用配置文件，但覆盖部分参数
+./db-taxi -config configs/local.yaml -password newsecret -server-port 9090
+
+# 混合使用环境变量和命令行参数
+export DBT_DATABASE_HOST=remote-mysql
+./db-taxi -user admin -password secret -database production_db
+```
+
+### 生产环境部署
+```bash
+# 使用环境变量（推荐用于生产环境）
+export DBT_DATABASE_HOST=mysql-server.internal
+export DBT_DATABASE_USERNAME=app_user
+export DBT_DATABASE_PASSWORD=secure_password
+export DBT_DATABASE_DATABASE=production_db
+export DBT_SERVER_PORT=8080
+./db-taxi -config configs/production.yaml
+```
+
+## 环境变量配置
+
+你也可以使用环境变量来配置应用：
+
+```bash
+export DBT_DATABASE_HOST=localhost
+export DBT_DATABASE_PORT=3306
+export DBT_DATABASE_USERNAME=root
+export DBT_DATABASE_PASSWORD=your_password
+export DBT_DATABASE_DATABASE=your_database
+export DBT_SERVER_PORT=8080
+```
+
+## API 端点
+
+### 健康检查
+- `GET /health` - 服务器健康检查
+
+### 数据库操作
+- `GET /api/status` - 获取服务器和数据库状态
+- `GET /api/connection/test` - 测试数据库连接
+- `GET /api/databases` - 获取数据库列表
+- `GET /api/databases/{database}/tables` - 获取指定数据库的表列表
+- `GET /api/databases/{database}/tables/{table}` - 获取表的详细信息
+- `GET /api/databases/{database}/tables/{table}/data` - 获取表数据（支持分页）
+
+### 查询参数
+- `limit` - 限制返回的记录数（默认：10，最大：1000）
+- `offset` - 偏移量（默认：0）
+
+## 项目结构
+
+```
+db-taxi/
+├── main.go                    # 应用程序入口
+├── config.yaml.example       # 配置文件模板
+├── static/                    # 静态文件
+│   └── index.html            # Web 界面
+├── internal/
+│   ├── config/               # 配置管理
+│   │   ├── config.go
+│   │   └── config_test.go
+│   ├── server/               # HTTP 服务器
+│   │   ├── server.go
+│   │   ├── middleware.go
+│   │   └── server_test.go
+│   └── database/             # 数据库操作
+│       ├── connection.go     # 连接池管理
+│       ├── schema.go         # 数据库结构探索
+│       └── connection_test.go
+└── go.mod                    # Go 模块定义
+```
+
+## 配置选项
+
+### 服务器配置
+- `server.port` - 服务器端口（默认：8080）
+- `server.host` - 服务器主机（默认：0.0.0.0）
+- `server.read_timeout` - 读取超时时间
+- `server.write_timeout` - 写入超时时间
+
+### 数据库配置
+- `database.host` - MySQL 主机地址
+- `database.port` - MySQL 端口
+- `database.username` - 用户名
+- `database.password` - 密码
+- `database.database` - 数据库名
+- `database.ssl` - 是否启用 SSL
+- `database.max_open_conns` - 最大连接数
+- `database.max_idle_conns` - 最大空闲连接数
+- `database.conn_max_lifetime` - 连接最大生存时间
+
+### 安全配置
+- `security.session_timeout` - 会话超时时间
+- `security.read_only_mode` - 只读模式
+- `security.enable_audit` - 启用审计日志
+
+### 日志配置
+- `logging.level` - 日志级别（debug, info, warn, error）
+- `logging.format` - 日志格式（json, text）
+- `logging.output` - 日志输出（stdout, stderr, 文件路径）
+
+## 开发
+
+### 运行测试
+```bash
+go test ./...
+```
+
+### Docker 部署
+```bash
+# 使用 Docker Compose（包含 MySQL）
+docker-compose up -d
+
+# 或者单独构建和运行
+docker build -t db-taxi .
+docker run -p 8080:8080 \
+  -e DBT_DATABASE_HOST=your-mysql-host \
+  -e DBT_DATABASE_USERNAME=root \
+  -e DBT_DATABASE_PASSWORD=secret \
+  -e DBT_DATABASE_DATABASE=mydb \
+  db-taxi
+```
+
+### 快速启动脚本
+```bash
+# 本地开发
+chmod +x scripts/start-local.sh
+./scripts/start-local.sh
+
+# 生产环境
+export DB_PASSWORD=your_production_password
+chmod +x scripts/start-production.sh
+./scripts/start-production.sh
+```
+
+## 技术栈
+
+- **后端**: Go 1.21+, Gin Web Framework
+- **数据库**: MySQL 5.7+
+- **前端**: HTML5, CSS3, JavaScript (Vanilla)
+- **依赖管理**: Go Modules
+
+## 依赖项
+
+- `github.com/gin-gonic/gin` - Web 框架
+- `github.com/jmoiron/sqlx` - SQL 扩展库
+- `github.com/go-sql-driver/mysql` - MySQL 驱动
+- `github.com/sirupsen/logrus` - 日志库
+- `github.com/spf13/viper` - 配置管理
+
+## 实现状态
+
+基于规范文档中的实施计划，当前实现包括：
+
+- ✅ 项目初始化和基础架构设置
+- ✅ 数据库连接池管理器
+- ✅ 数据库元数据探索器（Schema Explorer）
+- ✅ Web 界面和用户体验
+- ✅ REST API 接口实现
+- ⏳ 会话管理系统（待实现）
+- ⏳ SQL 查询引擎（待实现）
+- ⏳ 数据导出功能（待实现）
+
+## 许可证
+
+MIT License
+
+## 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+## 支持
+
+如果你遇到任何问题，请查看：
+1. 确保 MySQL 服务正在运行
+2. 检查配置文件中的数据库连接信息
+3. 查看应用程序日志获取详细错误信息

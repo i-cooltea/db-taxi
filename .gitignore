@@ -1,2 +1,4 @@
 .idea/
 db-taxi
+configs/config.yaml.*
+configs/*.yaml

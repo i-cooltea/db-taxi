@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  db-taxi:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - DBT_DATABASE_HOST=mysql
+      - DBT_DATABASE_PORT=3306
+      - DBT_DATABASE_USERNAME=root
+      - DBT_DATABASE_PASSWORD=rootpassword
+      - DBT_DATABASE_DATABASE=myapp
+      - DBT_LOGGING_LEVEL=info
+    depends_on:
+      - mysql
+    volumes:
+      - ./configs/docker.yaml:/app/config.yaml:ro
+    command: ["./db-taxi", "-config", "/app/config.yaml"]
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=myapp
+      - MYSQL_USER=appuser
+      - MYSQL_PASSWORD=apppassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+volumes:
+  mysql_data:
