@@ -29,6 +29,11 @@ type JobEngineService struct {
 	// Active jobs tracking
 	activeJobs map[string]*JobExecution
 	jobsMutex  sync.RWMutex
+
+	// Error handling and recovery
+	errorHandler      *ErrorHandler
+	checkpointManager *CheckpointManager
+	enableCheckpoints bool
 }
 
 // JobWorker represents a worker that processes sync jobs
@@ -53,15 +58,27 @@ type JobExecution struct {
 
 // NewJobEngine creates a new job engine instance
 func NewJobEngine(repo Repository, logger *logrus.Logger, monitoring MonitoringService, syncEngine SyncEngine) JobEngine {
+	// Create error notifier
+	notifier := NewLogNotifier(logger)
+
+	// Create error handler
+	errorHandler := NewErrorHandler(logger, monitoring, notifier)
+
+	// Create checkpoint manager
+	checkpointManager := NewCheckpointManager(repo, logger)
+
 	return &JobEngineService{
-		repo:        repo,
-		logger:      logger,
-		monitoring:  monitoring,
-		syncEngine:  syncEngine,
-		jobQueue:    make(chan *SyncJob, 100), // Buffer for 100 jobs
-		workerCount: 5,                        // Default 5 concurrent workers
-		activeJobs:  make(map[string]*JobExecution),
-		stopChan:    make(chan struct{}),
+		repo:              repo,
+		logger:            logger,
+		monitoring:        monitoring,
+		syncEngine:        syncEngine,
+		jobQueue:          make(chan *SyncJob, 100), // Buffer for 100 jobs
+		workerCount:       5,                        // Default 5 concurrent workers
+		activeJobs:        make(map[string]*JobExecution),
+		stopChan:          make(chan struct{}),
+		errorHandler:      errorHandler,
+		checkpointManager: checkpointManager,
+		enableCheckpoints: true, // Enable checkpoints by default
 	}
 }
 
@@ -379,7 +396,7 @@ func (w *JobWorker) processJob(job *SyncJob) {
 	}
 
 	// Execute the job
-	err := w.executeJob(ctx, job)
+	err := w.executeJobWithRecovery(ctx, job)
 
 	// Update final job status
 	now := time.Now()
