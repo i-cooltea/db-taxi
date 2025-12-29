@@ -175,3 +175,59 @@ type ConfigurationSummary struct {
 	EnabledTableMappings int       `json:"enabled_table_mappings"`
 	GeneratedAt          time.Time `json:"generated_at"`
 }
+
+// TableSyncStatus represents the status of table synchronization
+type TableSyncStatus string
+
+const (
+	TableStatusPending   TableSyncStatus = "pending"
+	TableStatusRunning   TableSyncStatus = "running"
+	TableStatusCompleted TableSyncStatus = "completed"
+	TableStatusFailed    TableSyncStatus = "failed"
+	TableStatusSkipped   TableSyncStatus = "skipped"
+)
+
+// SyncStatistics represents overall synchronization statistics
+type SyncStatistics struct {
+	TotalJobs          int64     `json:"total_jobs"`
+	CompletedJobs      int64     `json:"completed_jobs"`
+	FailedJobs         int64     `json:"failed_jobs"`
+	RunningJobs        int64     `json:"running_jobs"`
+	TotalRowsSynced    int64     `json:"total_rows_synced"`
+	TotalTablesSynced  int64     `json:"total_tables_synced"`
+	AverageJobDuration float64   `json:"average_job_duration_minutes"`
+	LastSyncTime       time.Time `json:"last_sync_time"`
+	SyncFrequency      float64   `json:"sync_frequency_per_hour"`
+	ErrorRate          float64   `json:"error_rate_percentage"`
+	GeneratedAt        time.Time `json:"generated_at"`
+}
+
+// JobSummary provides a summary of job execution
+type JobSummary struct {
+	JobID           string                    `json:"job_id"`
+	ConfigID        string                    `json:"config_id"`
+	Status          JobStatus                 `json:"status"`
+	StartTime       time.Time                 `json:"start_time"`
+	EndTime         *time.Time                `json:"end_time,omitempty"`
+	Duration        *time.Duration            `json:"duration,omitempty"`
+	TotalTables     int                       `json:"total_tables"`
+	CompletedTables int                       `json:"completed_tables"`
+	TotalRows       int64                     `json:"total_rows"`
+	ProcessedRows   int64                     `json:"processed_rows"`
+	ProgressPercent float64                   `json:"progress_percent"`
+	ErrorCount      int                       `json:"error_count"`
+	Warnings        []string                  `json:"warnings,omitempty"`
+	TableProgress   map[string]*TableProgress `json:"table_progress,omitempty"`
+}
+
+// TableProgress tracks progress for individual table synchronization
+type TableProgress struct {
+	TableName     string          `json:"table_name"`
+	Status        TableSyncStatus `json:"status"`
+	StartTime     time.Time       `json:"start_time"`
+	EndTime       *time.Time      `json:"end_time,omitempty"`
+	TotalRows     int64           `json:"total_rows"`
+	ProcessedRows int64           `json:"processed_rows"`
+	ErrorCount    int             `json:"error_count"`
+	LastError     string          `json:"last_error,omitempty"`
+}

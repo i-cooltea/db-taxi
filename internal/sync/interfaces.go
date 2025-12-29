@@ -84,6 +84,26 @@ type SyncManager interface {
 	// SetTableSyncMode updates the sync mode for a specific table mapping
 	// Requirement 3.3: Configure table sync rules (full/incremental mode)
 	SetTableSyncMode(ctx context.Context, mappingID string, syncMode SyncMode) error
+
+	// GetJobProgress returns the current progress of a sync job
+	// Requirement 5.1: Real-time display of sync progress and status
+	GetJobProgress(ctx context.Context, jobID string) (*JobSummary, error)
+
+	// GetSyncHistory returns historical sync records
+	// Requirement 5.2: Display historical sync records and results
+	GetSyncHistory(ctx context.Context, limit, offset int) ([]*JobHistory, error)
+
+	// GetSyncStatistics returns overall synchronization statistics
+	// Requirement 5.4: Display statistics information including data volume and time consumption
+	GetSyncStatistics(ctx context.Context) (*SyncStatistics, error)
+
+	// GetActiveJobs returns currently running sync jobs
+	// Requirement 5.1: Real-time display of sync progress and status
+	GetActiveJobs(ctx context.Context) ([]*JobSummary, error)
+
+	// GetJobLogs returns logs for a specific job
+	// Requirement 5.3: Display detailed error information and suggestions when sync fails
+	GetJobLogs(ctx context.Context, jobID string) ([]*SyncLog, error)
 }
 
 // JobEngine manages the execution of synchronization jobs
@@ -156,6 +176,52 @@ type SyncEngine interface {
 
 	// CreateTargetTable creates target table with source schema
 	CreateTargetTable(ctx context.Context, localDB string, schema *TableSchema) error
+}
+
+// MonitoringService provides sync status monitoring and statistics collection
+type MonitoringService interface {
+	// StartJobMonitoring starts monitoring a sync job
+	// Requirement 5.1: Real-time display of sync progress and status
+	StartJobMonitoring(ctx context.Context, jobID string, totalTables int) error
+
+	// UpdateJobProgress updates the progress of a sync job
+	// Requirement 5.1: Real-time display of sync progress and status
+	UpdateJobProgress(ctx context.Context, jobID string, progress *Progress) error
+
+	// UpdateTableProgress updates the progress of a specific table sync
+	// Requirement 5.1: Real-time display of sync progress and status
+	UpdateTableProgress(ctx context.Context, jobID, tableName string, status TableSyncStatus, processedRows, totalRows int64, errorMsg string) error
+
+	// GetJobProgress returns the current progress of a sync job
+	// Requirement 5.1: Real-time display of sync progress and status
+	GetJobProgress(ctx context.Context, jobID string) (*JobSummary, error)
+
+	// FinishJobMonitoring completes monitoring for a sync job
+	// Requirement 5.2: Display historical sync records and results
+	FinishJobMonitoring(ctx context.Context, jobID string, status JobStatus, errorMsg string) error
+
+	// GetSyncHistory returns historical sync records
+	// Requirement 5.2: Display historical sync records and results
+	GetSyncHistory(ctx context.Context, limit, offset int) ([]*JobHistory, error)
+
+	// GetSyncStatistics returns overall synchronization statistics
+	// Requirement 5.4: Display statistics information including data volume and time consumption
+	GetSyncStatistics(ctx context.Context) (*SyncStatistics, error)
+
+	// GetActiveJobs returns currently running sync jobs
+	// Requirement 5.1: Real-time display of sync progress and status
+	GetActiveJobs(ctx context.Context) ([]*JobSummary, error)
+
+	// AddJobWarning adds a warning message to a job
+	AddJobWarning(ctx context.Context, jobID, warning string) error
+
+	// GetJobLogs returns logs for a specific job
+	// Requirement 5.3: Display detailed error information and suggestions when sync fails
+	GetJobLogs(ctx context.Context, jobID string) ([]*SyncLog, error)
+
+	// LogJobEvent logs an event for a sync job
+	// Requirement 5.3: Display detailed error information and suggestions when sync fails
+	LogJobEvent(ctx context.Context, jobID, tableName, level, message string) error
 }
 
 // Repository defines the data access layer for sync operations

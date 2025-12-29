@@ -681,12 +681,17 @@ func (s *ConnectionManagerService) Close() error {
 // SyncManagerService implements SyncManager interface
 type SyncManagerService struct {
 	*Service
+	monitoring MonitoringService
 }
 
 // NewSyncManager creates a new sync manager service
 func NewSyncManager(repo Repository, logger *logrus.Logger, localDB *sqlx.DB) SyncManager {
+	service := NewService(repo, logger, localDB)
+	monitoring := NewMonitoringService(repo, logger)
+
 	return &SyncManagerService{
-		Service: NewService(repo, logger, localDB),
+		Service:    service,
+		monitoring: monitoring,
 	}
 }
 
@@ -824,9 +829,20 @@ func (s *SyncManagerService) StartSync(ctx context.Context, configID string) (*S
 		return nil, fmt.Errorf("failed to create sync job: %w", err)
 	}
 
+	// Start monitoring for this job
+	if err := s.monitoring.StartJobMonitoring(ctx, job.ID, len(syncConfig.Tables)); err != nil {
+		s.logger.WithError(err).WithField("job_id", job.ID).Warn("Failed to start job monitoring")
+	}
+
+	// Log job event
+	if err := s.monitoring.LogJobEvent(ctx, job.ID, "", "info", "Sync job started"); err != nil {
+		s.logger.WithError(err).WithField("job_id", job.ID).Warn("Failed to log job event")
+	}
+
 	s.logger.WithFields(logrus.Fields{
 		"job_id":         job.ID,
 		"sync_config_id": configID,
+		"total_tables":   len(syncConfig.Tables),
 	}).Info("Sync job created successfully")
 
 	// TODO: Submit job to job engine for execution
@@ -1325,4 +1341,34 @@ func (s *SyncManagerService) buildRemoteDSN(config *ConnectionConfig) (string, e
 	}
 
 	return mysqlConfig.FormatDSN(), nil
+}
+
+// GetJobProgress returns the current progress of a sync job
+// Requirement 5.1: Real-time display of sync progress and status
+func (s *SyncManagerService) GetJobProgress(ctx context.Context, jobID string) (*JobSummary, error) {
+	return s.monitoring.GetJobProgress(ctx, jobID)
+}
+
+// GetSyncHistory returns historical sync records
+// Requirement 5.2: Display historical sync records and results
+func (s *SyncManagerService) GetSyncHistory(ctx context.Context, limit, offset int) ([]*JobHistory, error) {
+	return s.monitoring.GetSyncHistory(ctx, limit, offset)
+}
+
+// GetSyncStatistics returns overall synchronization statistics
+// Requirement 5.4: Display statistics information including data volume and time consumption
+func (s *SyncManagerService) GetSyncStatistics(ctx context.Context) (*SyncStatistics, error) {
+	return s.monitoring.GetSyncStatistics(ctx)
+}
+
+// GetActiveJobs returns currently running sync jobs
+// Requirement 5.1: Real-time display of sync progress and status
+func (s *SyncManagerService) GetActiveJobs(ctx context.Context) ([]*JobSummary, error) {
+	return s.monitoring.GetActiveJobs(ctx)
+}
+
+// GetJobLogs returns logs for a specific job
+// Requirement 5.3: Display detailed error information and suggestions when sync fails
+func (s *SyncManagerService) GetJobLogs(ctx context.Context, jobID string) ([]*SyncLog, error) {
+	return s.monitoring.GetJobLogs(ctx, jobID)
 }

@@ -542,6 +542,26 @@ func (m *mockSyncManager) SetTableSyncMode(ctx context.Context, mappingID string
 	return mockError("SetTableSyncMode")
 }
 
+func (m *mockSyncManager) GetJobProgress(ctx context.Context, jobID string) (*JobSummary, error) {
+	return nil, mockError("GetJobProgress")
+}
+
+func (m *mockSyncManager) GetSyncHistory(ctx context.Context, limit, offset int) ([]*JobHistory, error) {
+	return nil, mockError("GetSyncHistory")
+}
+
+func (m *mockSyncManager) GetSyncStatistics(ctx context.Context) (*SyncStatistics, error) {
+	return nil, mockError("GetSyncStatistics")
+}
+
+func (m *mockSyncManager) GetActiveJobs(ctx context.Context) ([]*JobSummary, error) {
+	return nil, mockError("GetActiveJobs")
+}
+
+func (m *mockSyncManager) GetJobLogs(ctx context.Context, jobID string) ([]*SyncLog, error) {
+	return nil, mockError("GetJobLogs")
+}
+
 type mockJobEngine struct{}
 
 func (m *mockJobEngine) SubmitJob(ctx context.Context, job *SyncJob) error {
