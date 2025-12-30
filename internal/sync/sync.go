@@ -35,6 +35,7 @@ func NewManager(cfg *config.Config, db *sqlx.DB, logger *logrus.Logger) (*Manage
 	// Create services
 	connectionManager := NewConnectionManager(repo, logger, db)
 	syncManager := NewSyncManager(repo, logger, db)
+	syncEngine := NewSyncEngine(db, repo, logger)
 
 	manager := &Manager{
 		config:            cfg,
@@ -43,6 +44,7 @@ func NewManager(cfg *config.Config, db *sqlx.DB, logger *logrus.Logger) (*Manage
 		repo:              repo,
 		connectionManager: connectionManager,
 		syncManager:       syncManager,
+		syncEngine:        syncEngine,
 	}
 
 	logger.Info("Sync system manager initialized successfully")
@@ -59,7 +61,6 @@ func (m *Manager) Initialize(ctx context.Context) error {
 	}
 
 	// TODO: Initialize job engine
-	// TODO: Initialize sync engine
 	// TODO: Initialize mapping manager
 
 	m.logger.Info("Sync system initialized successfully")
