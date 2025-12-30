@@ -14,17 +14,37 @@ import (
 
 // DefaultSyncEngine implements the SyncEngine interface
 type DefaultSyncEngine struct {
-	localDB *sqlx.DB
-	repo    Repository
-	logger  *logrus.Logger
+	localDB        *sqlx.DB
+	repo           Repository
+	logger         *logrus.Logger
+	batchProcessor *BatchProcessor
 }
 
 // NewSyncEngine creates a new sync engine instance
 func NewSyncEngine(localDB *sqlx.DB, repo Repository, logger *logrus.Logger) SyncEngine {
+	// Create batch processor with default configuration
+	batchConfig := &BatchProcessorConfig{
+		BatchSize:     1000,
+		MaxMemoryMB:   512,
+		MaxWorkers:    4,
+		EnableMetrics: true,
+	}
+
 	return &DefaultSyncEngine{
-		localDB: localDB,
-		repo:    repo,
-		logger:  logger,
+		localDB:        localDB,
+		repo:           repo,
+		logger:         logger,
+		batchProcessor: NewBatchProcessor(localDB, logger, batchConfig),
+	}
+}
+
+// NewSyncEngineWithConfig creates a new sync engine with custom batch processor configuration
+func NewSyncEngineWithConfig(localDB *sqlx.DB, repo Repository, logger *logrus.Logger, batchConfig *BatchProcessorConfig) SyncEngine {
+	return &DefaultSyncEngine{
+		localDB:        localDB,
+		repo:           repo,
+		logger:         logger,
+		batchProcessor: NewBatchProcessor(localDB, logger, batchConfig),
 	}
 }
 
@@ -531,6 +551,49 @@ func (e *DefaultSyncEngine) syncAllData(ctx context.Context, remoteDB *sqlx.DB, 
 		"local_db":     localDB,
 	}).Info("Starting data synchronization")
 
+	// Get total row count to determine if we should use optimized batch processing
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM `%s`", mapping.SourceTable)
+	if mapping.WhereClause != "" {
+		countQuery += fmt.Sprintf(" WHERE %s", mapping.WhereClause)
+	}
+
+	var totalRows int64
+	if err := remoteDB.GetContext(ctx, &totalRows, countQuery); err != nil {
+		return fmt.Errorf("failed to get row count: %w", err)
+	}
+
+	// For large tables (>10,000 rows), use optimized batch processor
+	// Requirement 7.3: Process large tables in batches to avoid long locks
+	// Requirement 8.1: Use batch operations to improve efficiency
+	if totalRows > 10000 {
+		e.logger.WithFields(logrus.Fields{
+			"source_table": mapping.SourceTable,
+			"total_rows":   totalRows,
+		}).Info("Using optimized batch processor for large table")
+
+		result, err := e.batchProcessor.ProcessLargeTableSync(ctx, remoteDB, localDB, mapping, options)
+		if err != nil {
+			return fmt.Errorf("batch processing failed: %w", err)
+		}
+
+		e.logger.WithFields(logrus.Fields{
+			"source_table":   mapping.SourceTable,
+			"target_table":   mapping.TargetTable,
+			"processed_rows": result.ProcessedRows,
+			"total_rows":     result.TotalRows,
+			"duration":       result.Duration,
+			"throughput":     fmt.Sprintf("%.2f rows/sec", result.ThroughputRows),
+		}).Info("Optimized batch processing completed")
+
+		return nil
+	}
+
+	// For smaller tables, use standard batch processing
+	e.logger.WithFields(logrus.Fields{
+		"source_table": mapping.SourceTable,
+		"total_rows":   totalRows,
+	}).Info("Using standard batch processing for small table")
+
 	// Determine batch size
 	batchSize := 1000
 	if options != nil && options.BatchSize > 0 {
@@ -541,17 +604,6 @@ func (e *DefaultSyncEngine) syncAllData(ctx context.Context, remoteDB *sqlx.DB, 
 	selectQuery := fmt.Sprintf("SELECT * FROM `%s`", mapping.SourceTable)
 	if mapping.WhereClause != "" {
 		selectQuery += fmt.Sprintf(" WHERE %s", mapping.WhereClause)
-	}
-
-	// Get total row count
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM `%s`", mapping.SourceTable)
-	if mapping.WhereClause != "" {
-		countQuery += fmt.Sprintf(" WHERE %s", mapping.WhereClause)
-	}
-
-	var totalRows int64
-	if err := remoteDB.GetContext(ctx, &totalRows, countQuery); err != nil {
-		return fmt.Errorf("failed to get row count: %w", err)
 	}
 
 	e.logger.WithFields(logrus.Fields{
