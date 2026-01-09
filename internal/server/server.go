@@ -14,6 +14,19 @@ import (
 	"db-taxi/internal/sync"
 )
 
+// SyncManagerInterface defines the interface that Server needs from sync.Manager
+type SyncManagerInterface interface {
+	GetConnectionManager() sync.ConnectionManager
+	GetSyncManager() sync.SyncManager
+	GetMappingManager() sync.MappingManager
+	GetJobEngine() sync.JobEngine
+	GetSyncEngine() sync.SyncEngine
+	Initialize(ctx context.Context) error
+	Shutdown(ctx context.Context) error
+	HealthCheck(ctx context.Context) error
+	GetStats(ctx context.Context) (map[string]interface{}, error)
+}
+
 // Server represents the HTTP server
 type Server struct {
 	config      *config.Config
@@ -22,7 +35,7 @@ type Server struct {
 	logger      *logrus.Logger
 	dbPool      *database.ConnectionPool
 	explorer    *database.SchemaExplorer
-	syncManager *sync.Manager
+	syncManager SyncManagerInterface
 }
 
 // New creates a new server instance

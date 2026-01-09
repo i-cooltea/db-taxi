@@ -1,7 +1,18 @@
 package sync
 
 import (
+	"errors"
 	"time"
+)
+
+// Common errors
+var (
+	ErrConnectionNotFound   = errors.New("connection not found")
+	ErrSyncConfigNotFound   = errors.New("sync config not found")
+	ErrTableMappingNotFound = errors.New("table mapping not found")
+	ErrJobNotFound          = errors.New("job not found")
+	ErrInvalidConfig        = errors.New("invalid configuration")
+	ErrConnectionFailed     = errors.New("connection failed")
 )
 
 // SyncMode defines the synchronization mode
