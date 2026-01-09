@@ -241,8 +241,15 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🗄️ DB-Taxi MySQL Web Explorer</h1>
-            <p>浏览和探索您的MySQL数据库结构</p>
+            <div>
+                <h1>🗄️ DB-Taxi MySQL Web Explorer</h1>
+                <p>浏览和探索您的MySQL数据库结构</p>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <a href="/static/connections.html" style="color: white; text-decoration: none; padding: 0.5rem 1rem; background: rgba(255,255,255,0.2); border-radius: 5px; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                    🔌 连接管理
+                </a>
+            </div>
         </div>
 
         <div class="card">

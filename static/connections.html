@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>连接管理 - DB-Taxi</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            transition: background 0.2s;
+        }
+
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .card h2 {
+            color: #667eea;
+            font-size: 1.5rem;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: background 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover {
+            background: #5a6fd8;
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-small {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.85rem;
+        }
+
+        .connections-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .connection-card {
+            background: #f8f9ff;
+            border: 2px solid #e1e5f2;
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .connection-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        }
+
+        .connection-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 1rem;
+        }
+
+        .connection-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 0.25rem;
+        }
+
+        .connection-host {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .status-connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-testing {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .indicator-connected {
+            background-color: #28a745;
+        }
+
+        .indicator-disconnected {
+            background-color: #dc3545;
+        }
+
+        .indicator-testing {
+            background-color: #ffc107;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .connection-details {
+            margin: 1rem 0;
+            padding: 1rem;
+            background: white;
+            border-radius: 5px;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            font-weight: 500;
+            color: #666;
+        }
+
+        .detail-value {
+            color: #333;
+        }
+
+        .connection-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 2rem;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-header h2 {
+            color: #667eea;
+            margin: 0;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group small {
+            display: block;
+            margin-top: 0.25rem;
+            color: #666;
+            font-size: 0.85rem;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
+        }
+
+        .error {
+            background-color: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+        }
+
+        .success {
+            background-color: #efe;
+            border: 1px solid #cfc;
+            color: #3c3;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>🔌 连接管理</h1>
+                <p>管理远程数据库连接配置</p>
+            </div>
+            <div class="nav-links">
+                <a href="/" class="nav-link">🏠 首页</a>
+                <a href="/static/sync.html" class="nav-link">🔄 同步管理</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>📋 连接列表</h2>
+                <button class="btn" onclick="showAddConnectionModal()">
+                    ➕ 添加连接
+                </button>
+            </div>
+
+            <div id="connections-loading" class="loading" style="display: none;">
+                正在加载连接列表...
+            </div>
+
+            <div id="connections-error" class="error" style="display: none;"></div>
+
+            <div id="connections-empty" class="empty-state" style="display: none;">
+                <div class="empty-state-icon">🔌</div>
+                <h3>还没有配置任何连接</h3>
+                <p>点击上方"添加连接"按钮开始配置远程数据库连接</p>
+            </div>
+
+            <div id="connections-grid" class="connections-grid"></div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Connection Modal -->
+    <div id="connectionModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">添加连接</h2>
+                <span class="close" onclick="closeConnectionModal()">&times;</span>
+            </div>
+
+            <div id="modal-error" class="error" style="display: none;"></div>
+
+            <form id="connectionForm" onsubmit="saveConnection(event)">
+                <input type="hidden" id="connection-id" name="id">
+
+                <div class="form-group">
+                    <label for="connection-name">连接名称 *</label>
+                    <input type="text" id="connection-name" name="name" required>
+                    <small>为此连接指定一个易于识别的名称</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="connection-host">主机地址 *</label>
+                    <input type="text" id="connection-host" name="host" required placeholder="localhost">
+                    <small>数据库服务器的主机名或IP地址</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="connection-port">端口 *</label>
+                    <input type="number" id="connection-port" name="port" required value="3306" min="1" max="65535">
+                    <small>MySQL默认端口为3306</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="connection-username">用户名 *</label>
+                    <input type="text" id="connection-username" name="username" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="connection-password">密码 *</label>
+                    <input type="password" id="connection-password" name="password" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="connection-database">数据库名称 *</label>
+                    <input type="text" id="connection-database" name="database" required>
+                    <small>远程数据库的名称</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="connection-local-db">本地数据库名称 *</label>
+                    <input type="text" id="connection-local-db" name="local_db_name" required>
+                    <small>同步到本地时使用的数据库名称</small>
+                </div>
+
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="connection-ssl" name="ssl">
+                        <label for="connection-ssl">启用SSL连接</label>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeConnectionModal()">
+                        取消
+                    </button>
+                    <button type="submit" class="btn">
+                        保存
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let connections = [];
+        let editingConnectionId = null;
+
+        // Load connections on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadConnections();
+        });
+
+        async function loadConnections() {
+            const loadingEl = document.getElementById('connections-loading');
+            const errorEl = document.getElementById('connections-error');
+            const emptyEl = document.getElementById('connections-empty');
+            const gridEl = document.getElementById('connections-grid');
+
+            loadingEl.style.display = 'block';
+            errorEl.style.display = 'none';
+            emptyEl.style.display = 'none';
+            gridEl.innerHTML = '';
+
+            try {
+                const response = await fetch('/api/sync/connections');
+                const result = await response.json();
+
+                if (result.success) {
+                    connections = result.data || [];
+                    if (connections.length === 0) {
+                        emptyEl.style.display = 'block';
+                    } else {
+                        displayConnections(connections);
+                    }
+                } else {
+                    showError('connections-error', result.error || '加载连接列表失败');
+                }
+            } catch (error) {
+                showError('connections-error', '无法连接到服务器: ' + error.message);
+            }
+
+            loadingEl.style.display = 'none';
+        }
+
+        function displayConnections(connections) {
+            const gridEl = document.getElementById('connections-grid');
+            gridEl.innerHTML = '';
+
+            connections.forEach(conn => {
+                const card = createConnectionCard(conn);
+                gridEl.appendChild(card);
+            });
+        }
+
+        function createConnectionCard(conn) {
+            const card = document.createElement('div');
+            card.className = 'connection-card';
+            card.id = `connection-${conn.config.id}`;
+
+            const statusClass = conn.status.connected ? 'status-connected' : 'status-disconnected';
+            const indicatorClass = conn.status.connected ? 'indicator-connected' : 'indicator-disconnected';
+            const statusText = conn.status.connected ? '已连接' : '未连接';
+
+            card.innerHTML = `
+                <div class="connection-header">
+                    <div>
+                        <div class="connection-name">${escapeHtml(conn.config.name)}</div>
+                        <div class="connection-host">${escapeHtml(conn.config.host)}:${conn.config.port}</div>
+                    </div>
+                    <span class="status-badge ${statusClass}">
+                        <span class="status-indicator ${indicatorClass}"></span>
+                        ${statusText}
+                    </span>
+                </div>
+
+                <div class="connection-details">
+                    <div class="detail-row">
+                        <span class="detail-label">远程数据库:</span>
+                        <span class="detail-value">${escapeHtml(conn.config.database)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">本地数据库:</span>
+                        <span class="detail-value">${escapeHtml(conn.config.local_db_name)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">用户名:</span>
+                        <span class="detail-value">${escapeHtml(conn.config.username)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">SSL:</span>
+                        <span class="detail-value">${conn.config.ssl ? '启用' : '禁用'}</span>
+                    </div>
+                    ${conn.status.connected ? `
+                    <div class="detail-row">
+                        <span class="detail-label">延迟:</span>
+                        <span class="detail-value">${conn.status.latency_ms}ms</span>
+                    </div>
+                    ` : ''}
+                    ${conn.status.error ? `
+                    <div class="detail-row">
+                        <span class="detail-label">错误:</span>
+                        <span class="detail-value" style="color: #dc3545;">${escapeHtml(conn.status.error)}</span>
+                    </div>
+                    ` : ''}
+                </div>
+
+                <div class="connection-actions">
+                    <button class="btn btn-success btn-small" onclick="testConnection('${conn.config.id}')">
+                        🔍 测试连接
+                    </button>
+                    <button class="btn btn-secondary btn-small" onclick="editConnection('${conn.config.id}')">
+                        ✏️ 编辑
+                    </button>
+                    <button class="btn btn-danger btn-small" onclick="deleteConnection('${conn.config.id}')">
+                        🗑️ 删除
+                    </button>
+                </div>
+            `;
+
+            return card;
+        }
+
+        async function testConnection(connectionId) {
+            const card = document.getElementById(`connection-${connectionId}`);
+            const statusBadge = card.querySelector('.status-badge');
+            const originalContent = statusBadge.innerHTML;
+
+            // Show testing status
+            statusBadge.className = 'status-badge status-testing';
+            statusBadge.innerHTML = `
+                <span class="status-indicator indicator-testing"></span>
+                测试中...
+            `;
+
+            try {
+                const response = await fetch(`/api/sync/connections/${connectionId}/test`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    // Update connection status
+                    const conn = connections.find(c => c.config.id === connectionId);
+                    if (conn) {
+                        conn.status = result.data;
+                    }
+
+                    // Refresh the card
+                    const newCard = createConnectionCard(conn);
+                    card.replaceWith(newCard);
+
+                    if (result.data.connected) {
+                        showSuccess('连接测试成功！');
+                    } else {
+                        showError('connections-error', '连接测试失败: ' + (result.data.error || '未知错误'));
+                    }
+                } else {
+                    statusBadge.innerHTML = originalContent;
+                    showError('connections-error', '连接测试失败: ' + result.error);
+                }
+            } catch (error) {
+                statusBadge.innerHTML = originalContent;
+                showError('connections-error', '连接测试失败: ' + error.message);
+            }
+        }
+
+        function showAddConnectionModal() {
+            editingConnectionId = null;
+            document.getElementById('modal-title').textContent = '添加连接';
+            document.getElementById('connectionForm').reset();
+            document.getElementById('connection-id').value = '';
+            document.getElementById('modal-error').style.display = 'none';
+            document.getElementById('connectionModal').style.display = 'block';
+        }
+
+        function editConnection(connectionId) {
+            const conn = connections.find(c => c.config.id === connectionId);
+            if (!conn) return;
+
+            editingConnectionId = connectionId;
+            document.getElementById('modal-title').textContent = '编辑连接';
+            document.getElementById('connection-id').value = conn.config.id;
+            document.getElementById('connection-name').value = conn.config.name;
+            document.getElementById('connection-host').value = conn.config.host;
+            document.getElementById('connection-port').value = conn.config.port;
+            document.getElementById('connection-username').value = conn.config.username;
+            document.getElementById('connection-password').value = conn.config.password || '';
+            document.getElementById('connection-database').value = conn.config.database;
+            document.getElementById('connection-local-db').value = conn.config.local_db_name;
+            document.getElementById('connection-ssl').checked = conn.config.ssl || false;
+            document.getElementById('modal-error').style.display = 'none';
+            document.getElementById('connectionModal').style.display = 'block';
+        }
+
+        function closeConnectionModal() {
+            document.getElementById('connectionModal').style.display = 'none';
+            editingConnectionId = null;
+        }
+
+        async function saveConnection(event) {
+            event.preventDefault();
+
+            const formData = new FormData(event.target);
+            const config = {
+                name: formData.get('name'),
+                host: formData.get('host'),
+                port: parseInt(formData.get('port')),
+                username: formData.get('username'),
+                password: formData.get('password'),
+                database: formData.get('database'),
+                local_db_name: formData.get('local_db_name'),
+                ssl: formData.get('ssl') === 'on'
+            };
+
+            const submitBtn = event.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = '保存中...';
+
+            try {
+                let response;
+                if (editingConnectionId) {
+                    // Update existing connection
+                    response = await fetch(`/api/sync/connections/${editingConnectionId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(config)
+                    });
+                } else {
+                    // Create new connection
+                    response = await fetch('/api/sync/connections', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(config)
+                    });
+                }
+
+                const result = await response.json();
+
+                if (result.success) {
+                    closeConnectionModal();
+                    showSuccess(editingConnectionId ? '连接更新成功！' : '连接添加成功！');
+                    await loadConnections();
+                } else {
+                    showError('modal-error', result.error || '保存失败');
+                }
+            } catch (error) {
+                showError('modal-error', '保存失败: ' + error.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '保存';
+            }
+        }
+
+        async function deleteConnection(connectionId) {
+            const conn = connections.find(c => c.config.id === connectionId);
+            if (!conn) return;
+
+            if (!confirm(`确定要删除连接 "${conn.config.name}" 吗？\n\n此操作将同时删除相关的同步配置。`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/sync/connections/${connectionId}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    showSuccess('连接删除成功！');
+                    await loadConnections();
+                } else {
+                    showError('connections-error', '删除失败: ' + result.error);
+                }
+            } catch (error) {
+                showError('connections-error', '删除失败: ' + error.message);
+            }
+        }
+
+        function showError(elementId, message) {
+            const errorEl = document.getElementById(elementId);
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+            setTimeout(() => {
+                errorEl.style.display = 'none';
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const successEl = document.createElement('div');
+            successEl.className = 'success';
+            successEl.textContent = message;
+            document.querySelector('.container').insertBefore(
+                successEl,
+                document.querySelector('.card')
+            );
+            setTimeout(() => {
+                successEl.remove();
+            }, 3000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('connectionModal');
+            if (event.target === modal) {
+                closeConnectionModal();
+            }
+        }
+    </script>
+</body>
+</html>
