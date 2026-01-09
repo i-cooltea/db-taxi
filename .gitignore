@@ -2,3 +2,4 @@
 db-taxi
 configs/config.yaml.*
 configs/*.yaml
+frontend/node_modules
