@@ -458,6 +458,7 @@ func (s *Server) registerSyncRoutes(api *gin.RouterGroup) {
 			connections.PUT("/:id", s.updateSyncConnection)
 			connections.DELETE("/:id", s.deleteSyncConnection)
 			connections.POST("/:id/test", s.testSyncConnection)
+			connections.GET("/:id/tables", s.getConnectionTables)
 		}
 
 		// Sync configuration routes
@@ -672,6 +673,35 @@ func (s *Server) testSyncConnection(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    status,
+	})
+}
+
+func (s *Server) getConnectionTables(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	connectionID := c.Param("id")
+	tables, err := s.syncManager.GetSyncManager().GetRemoteTables(c.Request.Context(), connectionID)
+	if err != nil {
+		s.logger.WithError(err).WithField("connection_id", connectionID).Error("Failed to get connection tables")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    tables,
+		"meta": gin.H{
+			"total": len(tables),
+		},
 	})
 }
 

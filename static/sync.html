@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>同步管理 - DB-Taxi</title>
+    <title>同步配置 - DB-Taxi</title>
     <style>
         * {
             margin: 0;
@@ -65,21 +65,423 @@
         .card {
             background: white;
             border-radius: 10px;
-            padding: 2rem;
+            padding: 1.5rem;
             margin-bottom: 1.5rem;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            text-align: center;
         }
 
-        .placeholder-icon {
-            font-size: 5rem;
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .card h2 {
+            color: #667eea;
+            font-size: 1.5rem;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: background 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover {
+            background: #5a6fd8;
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-small {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.85rem;
+        }
+
+        .configs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .config-card {
+            background: #f8f9ff;
+            border: 2px solid #e1e5f2;
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .config-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        }
+
+        .config-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
             margin-bottom: 1rem;
         }
 
-        .placeholder-text {
-            color: #666;
+        .config-name {
             font-size: 1.2rem;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 0.25rem;
+        }
+
+        .config-connection {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .status-enabled {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-disabled {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .config-details {
+            margin: 1rem 0;
+            padding: 1rem;
+            background: white;
+            border-radius: 5px;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            font-weight: 500;
+            color: #666;
+        }
+
+        .detail-value {
+            color: #333;
+        }
+
+        .config-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s;
+            overflow-y: auto;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 2% auto;
+            padding: 2rem;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 900px;
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-header h2 {
+            color: #667eea;
+            margin: 0;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group small {
+            display: block;
+            margin-top: 0.25rem;
+            color: #666;
+            font-size: 0.85rem;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
+        }
+
+        .error {
+            background-color: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 1rem;
+            border-radius: 5px;
             margin-bottom: 1rem;
+        }
+
+        .success {
+            background-color: #efe;
+            border: 1px solid #cfc;
+            color: #3c3;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+        }
+
+        .table-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 1rem;
+        }
+
+        .table-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.2s;
+        }
+
+        .table-item:hover {
+            background: #f8f9ff;
+        }
+
+        .table-item:last-child {
+            border-bottom: none;
+        }
+
+        .table-info {
+            flex: 1;
+        }
+
+        .table-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .table-mapping {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+
+        .table-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .sync-mode-select {
+            padding: 0.4rem 0.6rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid #e1e5f2;
+        }
+
+        .tab {
+            padding: 0.75rem 1.5rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: #667eea;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            font-weight: 500;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .badge-full {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .badge-incremental {
+            background: #f3e5f5;
+            color: #7b1fa2;
         }
     </style>
 </head>
@@ -87,8 +489,8 @@
     <div class="container">
         <div class="header">
             <div>
-                <h1>🔄 同步管理</h1>
-                <p>管理数据库同步配置和任务</p>
+                <h1>🔄 同步配置</h1>
+                <p>管理数据库同步配置和表映射</p>
             </div>
             <div class="nav-links">
                 <a href="/" class="nav-link">🏠 首页</a>
@@ -97,10 +499,838 @@
         </div>
 
         <div class="card">
-            <div class="placeholder-icon">🚧</div>
-            <div class="placeholder-text">同步管理界面正在开发中</div>
-            <p style="color: #999;">此功能将在后续任务中实现</p>
+            <div class="card-header">
+                <h2>📋 同步配置列表</h2>
+                <button class="btn" onclick="showAddConfigModal()">
+                    ➕ 创建同步配置
+                </button>
+            </div>
+
+            <div id="configs-loading" class="loading" style="display: none;">
+                正在加载同步配置...
+            </div>
+
+            <div id="configs-error" class="error" style="display: none;"></div>
+
+            <div id="configs-empty" class="empty-state" style="display: none;">
+                <div class="empty-state-icon">📋</div>
+                <h3>还没有配置任何同步任务</h3>
+                <p>点击上方"创建同步配置"按钮开始配置数据库同步</p>
+            </div>
+
+            <div id="configs-grid" class="configs-grid"></div>
         </div>
     </div>
+
+    <!-- Add/Edit Config Modal -->
+    <div id="configModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">创建同步配置</h2>
+                <span class="close" onclick="closeConfigModal()">&times;</span>
+            </div>
+
+            <div id="modal-error" class="error" style="display: none;"></div>
+
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('basic')">基本配置</button>
+                <button class="tab" onclick="switchTab('tables')">表选择</button>
+                <button class="tab" onclick="switchTab('options')">高级选项</button>
+            </div>
+
+            <form id="configForm" onsubmit="saveConfig(event)">
+                <input type="hidden" id="config-id" name="id">
+                <input type="hidden" id="config-connection-id" name="connection_id">
+
+                <!-- Basic Configuration Tab -->
+                <div id="tab-basic" class="tab-content active">
+                    <div class="form-group">
+                        <label for="config-connection">选择连接 *</label>
+                        <select id="config-connection" name="connection" required onchange="onConnectionChange()">
+                            <option value="">请选择数据库连接</option>
+                        </select>
+                        <small>选择要同步的远程数据库连接</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="config-name">配置名称 *</label>
+                        <input type="text" id="config-name" name="name" required>
+                        <small>为此同步配置指定一个易于识别的名称</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="config-sync-mode">默认同步模式 *</label>
+                        <select id="config-sync-mode" name="sync_mode" required>
+                            <option value="full">全量同步</option>
+                            <option value="incremental">增量同步</option>
+                        </select>
+                        <small>全量同步会复制所有数据，增量同步只同步变更的数据</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="config-schedule">同步计划</label>
+                        <input type="text" id="config-schedule" name="schedule" placeholder="0 */6 * * *">
+                        <small>使用 Cron 表达式设置定时同步（留空表示手动触发）</small>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="config-enabled" name="enabled" checked>
+                            <label for="config-enabled">启用此配置</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tables Selection Tab -->
+                <div id="tab-tables" class="tab-content">
+                    <div class="form-group">
+                        <label>选择要同步的表</label>
+                        <div id="tables-loading" class="loading" style="display: none;">
+                            正在加载表列表...
+                        </div>
+                        <div id="tables-error" class="error" style="display: none;"></div>
+                        <div id="tables-empty" class="empty-state" style="display: none;">
+                            <p>请先在"基本配置"中选择数据库连接</p>
+                        </div>
+                        <div id="tables-list" class="table-list" style="display: none;"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <button type="button" class="btn btn-secondary" onclick="selectAllTables()">
+                            全选
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="deselectAllTables()">
+                            取消全选
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Advanced Options Tab -->
+                <div id="tab-options" class="tab-content">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="config-batch-size">批处理大小</label>
+                            <input type="number" id="config-batch-size" name="batch_size" value="1000" min="100" max="10000">
+                            <small>每批处理的记录数</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="config-max-concurrency">最大并发数</label>
+                            <input type="number" id="config-max-concurrency" name="max_concurrency" value="5" min="1" max="20">
+                            <small>同时同步的表数量</small>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="config-conflict-resolution">冲突解决策略</label>
+                        <select id="config-conflict-resolution" name="conflict_resolution">
+                            <option value="skip">跳过</option>
+                            <option value="overwrite">覆盖</option>
+                            <option value="error">报错</option>
+                        </select>
+                        <small>当数据冲突时的处理方式</small>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="config-compression" name="enable_compression" checked>
+                            <label for="config-compression">启用数据压缩传输</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeConfigModal()">
+                        取消
+                    </button>
+                    <button type="submit" class="btn">
+                        保存配置
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Table Mapping Modal -->
+    <div id="tableMappingModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>配置表映射</h2>
+                <span class="close" onclick="closeTableMappingModal()">&times;</span>
+            </div>
+
+            <div id="mapping-error" class="error" style="display: none;"></div>
+
+            <form id="tableMappingForm" onsubmit="saveTableMapping(event)">
+                <input type="hidden" id="mapping-config-id">
+                <input type="hidden" id="mapping-id">
+
+                <div class="form-group">
+                    <label for="mapping-source-table">源表名称 *</label>
+                    <input type="text" id="mapping-source-table" name="source_table" required readonly>
+                </div>
+
+                <div class="form-group">
+                    <label for="mapping-target-table">目标表名称 *</label>
+                    <input type="text" id="mapping-target-table" name="target_table" required>
+                    <small>本地数据库中的表名称（可自定义）</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="mapping-sync-mode">同步模式 *</label>
+                    <select id="mapping-sync-mode" name="sync_mode" required>
+                        <option value="full">全量同步</option>
+                        <option value="incremental">增量同步</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="mapping-where-clause">WHERE 条件</label>
+                    <textarea id="mapping-where-clause" name="where_clause" rows="3" placeholder="created_at > '2024-01-01'"></textarea>
+                    <small>可选的过滤条件，只同步符合条件的数据</small>
+                </div>
+
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="mapping-enabled" name="enabled" checked>
+                        <label for="mapping-enabled">启用此表同步</label>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeTableMappingModal()">
+                        取消
+                    </button>
+                    <button type="submit" class="btn">
+                        保存
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let configs = [];
+        let connections = [];
+        let availableTables = [];
+        let selectedTables = new Map();
+        let editingConfigId = null;
+        let currentConfigForMapping = null;
+
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadConfigs();
+            loadConnections();
+        });
+
+        async function loadConnections() {
+            try {
+                const response = await fetch('/api/sync/connections');
+                const result = await response.json();
+                if (result.success) {
+                    connections = result.data || [];
+                    populateConnectionSelect();
+                }
+            } catch (error) {
+                console.error('Failed to load connections:', error);
+            }
+        }
+
+        function populateConnectionSelect() {
+            const select = document.getElementById('config-connection');
+            select.innerHTML = '<option value="">请选择数据库连接</option>';
+            connections.forEach(conn => {
+                const option = document.createElement('option');
+                option.value = conn.config.id;
+                option.textContent = `${conn.config.name} (${conn.config.host}:${conn.config.port})`;
+                select.appendChild(option);
+            });
+        }
+
+        async function loadConfigs() {
+            const loadingEl = document.getElementById('configs-loading');
+            const errorEl = document.getElementById('configs-error');
+            const emptyEl = document.getElementById('configs-empty');
+            const gridEl = document.getElementById('configs-grid');
+
+            loadingEl.style.display = 'block';
+            errorEl.style.display = 'none';
+            emptyEl.style.display = 'none';
+            gridEl.innerHTML = '';
+
+            try {
+                // Get all connections first
+                const connectionsResponse = await fetch('/api/sync/connections');
+                const connectionsResult = await connectionsResponse.json();
+                
+                if (!connectionsResult.success) {
+                    throw new Error('Failed to load connections');
+                }
+
+                const allConnections = connectionsResult.data || [];
+                configs = [];
+
+                // Load configs for each connection
+                for (const conn of allConnections) {
+                    try {
+                        const response = await fetch(`/api/sync/configs?connection_id=${conn.config.id}`);
+                        const result = await response.json();
+                        if (result.success && result.data) {
+                            configs.push(...result.data);
+                        }
+                    } catch (error) {
+                        console.error(`Failed to load configs for connection ${conn.config.id}:`, error);
+                    }
+                }
+
+                if (configs.length === 0) {
+                    emptyEl.style.display = 'block';
+                } else {
+                    displayConfigs(configs);
+                }
+            } catch (error) {
+                showError('configs-error', '无法连接到服务器: ' + error.message);
+            }
+
+            loadingEl.style.display = 'none';
+        }
+
+        function displayConfigs(configs) {
+            const gridEl = document.getElementById('configs-grid');
+            gridEl.innerHTML = '';
+
+            configs.forEach(config => {
+                const card = createConfigCard(config);
+                gridEl.appendChild(card);
+            });
+        }
+
+        function createConfigCard(config) {
+            const card = document.createElement('div');
+            card.className = 'config-card';
+            card.id = `config-${config.id}`;
+
+            const connection = connections.find(c => c.config.id === config.connection_id);
+            const connectionName = connection ? connection.config.name : 'Unknown';
+
+            const statusClass = config.enabled ? 'status-enabled' : 'status-disabled';
+            const statusText = config.enabled ? '已启用' : '已禁用';
+
+            const syncModeClass = config.sync_mode === 'full' ? 'badge-full' : 'badge-incremental';
+            const syncModeText = config.sync_mode === 'full' ? '全量同步' : '增量同步';
+
+            const tableCount = config.tables ? config.tables.length : 0;
+
+            card.innerHTML = `
+                <div class="config-header">
+                    <div>
+                        <div class="config-name">${escapeHtml(config.name)}</div>
+                        <div class="config-connection">连接: ${escapeHtml(connectionName)}</div>
+                    </div>
+                    <span class="status-badge ${statusClass}">
+                        ${statusText}
+                    </span>
+                </div>
+
+                <div class="config-details">
+                    <div class="detail-row">
+                        <span class="detail-label">同步模式:</span>
+                        <span class="badge ${syncModeClass}">${syncModeText}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">同步表数量:</span>
+                        <span class="detail-value">${tableCount} 个表</span>
+                    </div>
+                    ${config.schedule ? `
+                    <div class="detail-row">
+                        <span class="detail-label">同步计划:</span>
+                        <span class="detail-value">${escapeHtml(config.schedule)}</span>
+                    </div>
+                    ` : ''}
+                    ${config.options ? `
+                    <div class="detail-row">
+                        <span class="detail-label">批处理大小:</span>
+                        <span class="detail-value">${config.options.batch_size || 1000}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">最大并发:</span>
+                        <span class="detail-value">${config.options.max_concurrency || 5}</span>
+                    </div>
+                    ` : ''}
+                </div>
+
+                <div class="config-actions">
+                    <button class="btn btn-success btn-small" onclick="startSync('${config.id}')">
+                        ▶️ 启动同步
+                    </button>
+                    <button class="btn btn-secondary btn-small" onclick="viewTables('${config.id}')">
+                        📋 查看表
+                    </button>
+                    <button class="btn btn-secondary btn-small" onclick="editConfig('${config.id}')">
+                        ✏️ 编辑
+                    </button>
+                    <button class="btn btn-danger btn-small" onclick="deleteConfig('${config.id}')">
+                        🗑️ 删除
+                    </button>
+                </div>
+            `;
+
+            return card;
+        }
+
+        async function startSync(configId) {
+            if (!confirm('确定要启动同步任务吗？')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/sync/jobs', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ config_id: configId })
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    showSuccess('同步任务已启动！任务ID: ' + result.data.id);
+                    // Redirect to monitoring page after a short delay
+                    setTimeout(() => {
+                        window.location.href = '/static/monitoring.html?job_id=' + result.data.id;
+                    }, 1500);
+                } else {
+                    showError('configs-error', '启动同步失败: ' + result.error);
+                }
+            } catch (error) {
+                showError('configs-error', '启动同步失败: ' + error.message);
+            }
+        }
+
+        function viewTables(configId) {
+            const config = configs.find(c => c.id === configId);
+            if (!config) return;
+
+            currentConfigForMapping = config;
+            
+            // Show table list in a simple alert for now
+            // In a real implementation, this would open a detailed modal
+            const tableList = config.tables.map(t => 
+                `${t.source_table} → ${t.target_table} (${t.sync_mode})`
+            ).join('\n');
+            
+            alert(`配置: ${config.name}\n\n同步表列表:\n${tableList || '(无)'}`);
+        }
+
+        function showAddConfigModal() {
+            editingConfigId = null;
+            document.getElementById('modal-title').textContent = '创建同步配置';
+            document.getElementById('configForm').reset();
+            document.getElementById('config-id').value = '';
+            document.getElementById('config-enabled').checked = true;
+            document.getElementById('modal-error').style.display = 'none';
+            selectedTables.clear();
+            switchTab('basic');
+            document.getElementById('configModal').style.display = 'block';
+        }
+
+        async function editConfig(configId) {
+            const config = configs.find(c => c.id === configId);
+            if (!config) return;
+
+            editingConfigId = configId;
+            document.getElementById('modal-title').textContent = '编辑同步配置';
+            document.getElementById('config-id').value = config.id;
+            document.getElementById('config-connection-id').value = config.connection_id;
+            document.getElementById('config-connection').value = config.connection_id;
+            document.getElementById('config-name').value = config.name;
+            document.getElementById('config-sync-mode').value = config.sync_mode;
+            document.getElementById('config-schedule').value = config.schedule || '';
+            document.getElementById('config-enabled').checked = config.enabled;
+
+            if (config.options) {
+                document.getElementById('config-batch-size').value = config.options.batch_size || 1000;
+                document.getElementById('config-max-concurrency').value = config.options.max_concurrency || 5;
+                document.getElementById('config-conflict-resolution').value = config.options.conflict_resolution || 'skip';
+                document.getElementById('config-compression').checked = config.options.enable_compression !== false;
+            }
+
+            // Load tables for this connection
+            selectedTables.clear();
+            if (config.tables) {
+                config.tables.forEach(table => {
+                    selectedTables.set(table.source_table, {
+                        target_table: table.target_table,
+                        sync_mode: table.sync_mode,
+                        enabled: table.enabled,
+                        where_clause: table.where_clause || ''
+                    });
+                });
+            }
+
+            await loadTablesForConnection(config.connection_id);
+            
+            document.getElementById('modal-error').style.display = 'none';
+            switchTab('basic');
+            document.getElementById('configModal').style.display = 'block';
+        }
+
+        function closeConfigModal() {
+            document.getElementById('configModal').style.display = 'none';
+            editingConfigId = null;
+            selectedTables.clear();
+        }
+
+        async function onConnectionChange() {
+            const connectionId = document.getElementById('config-connection').value;
+            document.getElementById('config-connection-id').value = connectionId;
+            
+            if (connectionId) {
+                await loadTablesForConnection(connectionId);
+            } else {
+                document.getElementById('tables-list').style.display = 'none';
+                document.getElementById('tables-empty').style.display = 'block';
+            }
+        }
+
+        async function loadTablesForConnection(connectionId) {
+            const loadingEl = document.getElementById('tables-loading');
+            const errorEl = document.getElementById('tables-error');
+            const emptyEl = document.getElementById('tables-empty');
+            const listEl = document.getElementById('tables-list');
+
+            loadingEl.style.display = 'block';
+            errorEl.style.display = 'none';
+            emptyEl.style.display = 'none';
+            listEl.style.display = 'none';
+
+            try {
+                // For now, we'll create a temporary config to get tables
+                // In a real implementation, we might have a separate endpoint
+                const response = await fetch('/api/sync/connections/' + connectionId + '/tables');
+                const result = await response.json();
+
+                if (result.success) {
+                    availableTables = result.data || [];
+                    if (availableTables.length === 0) {
+                        emptyEl.innerHTML = '<p>此数据库没有可用的表</p>';
+                        emptyEl.style.display = 'block';
+                    } else {
+                        displayTablesList(availableTables);
+                        listEl.style.display = 'block';
+                    }
+                } else {
+                    showError('tables-error', result.error || '加载表列表失败');
+                }
+            } catch (error) {
+                showError('tables-error', '加载表列表失败: ' + error.message);
+            }
+
+            loadingEl.style.display = 'none';
+        }
+
+        function displayTablesList(tables) {
+            const listEl = document.getElementById('tables-list');
+            listEl.innerHTML = '';
+
+            tables.forEach(tableName => {
+                const item = createTableItem(tableName);
+                listEl.appendChild(item);
+            });
+        }
+
+        function createTableItem(tableName) {
+            const item = document.createElement('div');
+            item.className = 'table-item';
+            item.id = `table-item-${tableName}`;
+
+            const isSelected = selectedTables.has(tableName);
+            const tableData = selectedTables.get(tableName) || {
+                target_table: tableName,
+                sync_mode: 'full',
+                enabled: true
+            };
+
+            item.innerHTML = `
+                <div class="table-info">
+                    <div class="table-name">${escapeHtml(tableName)}</div>
+                    ${isSelected ? `
+                    <div class="table-mapping">→ ${escapeHtml(tableData.target_table)} (${tableData.sync_mode})</div>
+                    ` : ''}
+                </div>
+                <div class="table-actions">
+                    ${isSelected ? `
+                    <select class="sync-mode-select" onchange="updateTableSyncMode('${tableName}', this.value)">
+                        <option value="full" ${tableData.sync_mode === 'full' ? 'selected' : ''}>全量</option>
+                        <option value="incremental" ${tableData.sync_mode === 'incremental' ? 'selected' : ''}>增量</option>
+                    </select>
+                    <button class="btn btn-secondary btn-small" onclick="configureTableMapping('${tableName}')">
+                        ⚙️ 配置
+                    </button>
+                    ` : ''}
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="table-${tableName}" 
+                               ${isSelected ? 'checked' : ''} 
+                               onchange="toggleTableSelection('${tableName}', this.checked)">
+                        <label for="table-${tableName}">选择</label>
+                    </div>
+                </div>
+            `;
+
+            return item;
+        }
+
+        function toggleTableSelection(tableName, selected) {
+            if (selected) {
+                selectedTables.set(tableName, {
+                    target_table: tableName,
+                    sync_mode: document.getElementById('config-sync-mode').value || 'full',
+                    enabled: true,
+                    where_clause: ''
+                });
+            } else {
+                selectedTables.delete(tableName);
+            }
+            
+            // Refresh the table item to show/hide controls
+            const item = document.getElementById(`table-item-${tableName}`);
+            if (item) {
+                const newItem = createTableItem(tableName);
+                item.replaceWith(newItem);
+            }
+        }
+
+        function updateTableSyncMode(tableName, syncMode) {
+            const tableData = selectedTables.get(tableName);
+            if (tableData) {
+                tableData.sync_mode = syncMode;
+                selectedTables.set(tableName, tableData);
+            }
+        }
+
+        function configureTableMapping(tableName) {
+            const tableData = selectedTables.get(tableName);
+            if (!tableData) return;
+
+            document.getElementById('mapping-source-table').value = tableName;
+            document.getElementById('mapping-target-table').value = tableData.target_table;
+            document.getElementById('mapping-sync-mode').value = tableData.sync_mode;
+            document.getElementById('mapping-where-clause').value = tableData.where_clause || '';
+            document.getElementById('mapping-enabled').checked = tableData.enabled !== false;
+
+            document.getElementById('tableMappingModal').style.display = 'block';
+        }
+
+        function closeTableMappingModal() {
+            document.getElementById('tableMappingModal').style.display = 'none';
+        }
+
+        function saveTableMapping(event) {
+            event.preventDefault();
+
+            const formData = new FormData(event.target);
+            const sourceTable = formData.get('source_table');
+            const targetTable = formData.get('target_table');
+            const syncMode = formData.get('sync_mode');
+            const whereClause = formData.get('where_clause');
+            const enabled = formData.get('enabled') === 'on';
+
+            selectedTables.set(sourceTable, {
+                target_table: targetTable,
+                sync_mode: syncMode,
+                enabled: enabled,
+                where_clause: whereClause
+            });
+
+            // Refresh the table item
+            const item = document.getElementById(`table-item-${sourceTable}`);
+            if (item) {
+                const newItem = createTableItem(sourceTable);
+                item.replaceWith(newItem);
+            }
+
+            closeTableMappingModal();
+            showSuccess('表映射配置已更新');
+        }
+
+        function selectAllTables() {
+            availableTables.forEach(tableName => {
+                if (!selectedTables.has(tableName)) {
+                    selectedTables.set(tableName, {
+                        target_table: tableName,
+                        sync_mode: document.getElementById('config-sync-mode').value || 'full',
+                        enabled: true,
+                        where_clause: ''
+                    });
+                }
+            });
+            displayTablesList(availableTables);
+        }
+
+        function deselectAllTables() {
+            selectedTables.clear();
+            displayTablesList(availableTables);
+        }
+
+        async function saveConfig(event) {
+            event.preventDefault();
+
+            const formData = new FormData(event.target);
+            const connectionId = document.getElementById('config-connection-id').value;
+
+            if (!connectionId) {
+                showError('modal-error', '请选择数据库连接');
+                return;
+            }
+
+            if (selectedTables.size === 0) {
+                showError('modal-error', '请至少选择一个表进行同步');
+                return;
+            }
+
+            const tables = Array.from(selectedTables.entries()).map(([source, data]) => ({
+                source_table: source,
+                target_table: data.target_table,
+                sync_mode: data.sync_mode,
+                enabled: data.enabled,
+                where_clause: data.where_clause || undefined
+            }));
+
+            const config = {
+                connection_id: connectionId,
+                name: formData.get('name'),
+                tables: tables,
+                sync_mode: formData.get('sync_mode'),
+                schedule: formData.get('schedule') || undefined,
+                enabled: formData.get('enabled') === 'on',
+                options: {
+                    batch_size: parseInt(formData.get('batch_size')),
+                    max_concurrency: parseInt(formData.get('max_concurrency')),
+                    enable_compression: formData.get('enable_compression') === 'on',
+                    conflict_resolution: formData.get('conflict_resolution')
+                }
+            };
+
+            const submitBtn = event.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = '保存中...';
+
+            try {
+                let response;
+                if (editingConfigId) {
+                    response = await fetch(`/api/sync/configs/${editingConfigId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(config)
+                    });
+                } else {
+                    response = await fetch('/api/sync/configs', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(config)
+                    });
+                }
+
+                const result = await response.json();
+
+                if (result.success) {
+                    closeConfigModal();
+                    showSuccess(editingConfigId ? '同步配置更新成功！' : '同步配置创建成功！');
+                    await loadConfigs();
+                } else {
+                    showError('modal-error', result.error || '保存失败');
+                }
+            } catch (error) {
+                showError('modal-error', '保存失败: ' + error.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '保存配置';
+            }
+        }
+
+        async function deleteConfig(configId) {
+            const config = configs.find(c => c.id === configId);
+            if (!config) return;
+
+            if (!confirm(`确定要删除同步配置 "${config.name}" 吗？\n\n此操作将删除所有相关的表映射配置。`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/sync/configs/${configId}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    showSuccess('同步配置删除成功！');
+                    await loadConfigs();
+                } else {
+                    showError('configs-error', '删除失败: ' + result.error);
+                }
+            } catch (error) {
+                showError('configs-error', '删除失败: ' + error.message);
+            }
+        }
+
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+
+        function showError(elementId, message) {
+            const errorEl = document.getElementById(elementId);
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+            setTimeout(() => {
+                errorEl.style.display = 'none';
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const successEl = document.createElement('div');
+            successEl.className = 'success';
+            successEl.textContent = message;
+            document.querySelector('.container').insertBefore(
+                successEl,
+                document.querySelector('.card')
+            );
+            setTimeout(() => {
+                successEl.remove();
+            }, 3000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            const configModal = document.getElementById('configModal');
+            const mappingModal = document.getElementById('tableMappingModal');
+            
+            if (event.target === configModal) {
+                closeConfigModal();
+            }
+            if (event.target === mappingModal) {
+                closeTableMappingModal();
+            }
+        }
+    </script>
 </body>
 </html>

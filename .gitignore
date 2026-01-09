@@ -4,6 +4,17 @@ configs/config.yaml.*
 configs/*.yaml
 frontend/node_modules
 
+# ===================== 编辑器缓存【必加】=====================
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+*.bak
+
 # ===================== MAC系统垃圾文件【重中之重！你的元凶】=====================
 .DS_Store
 .DS_Store?
@@ -12,3 +23,10 @@ frontend/node_modules
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# ===================== 日志/临时文件 =====================
+*.log
+*.tmp
+*.cache
+*.zip
+*.rar

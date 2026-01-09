@@ -1,0 +1,172 @@
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+
+export const useSyncStore = defineStore('sync', () => {
+  // State
+  const configs = ref([])
+  const connections = ref([])
+  const loading = ref(false)
+  const error = ref(null)
+
+  // Getters
+  const configCount = computed(() => configs.value.length)
+  const enabledConfigs = computed(() => 
+    configs.value.filter(c => c.enabled)
+  )
+
+  // Actions
+  async function fetchConnections() {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await fetch('/api/sync/connections')
+      const result = await response.json()
+      if (result.success) {
+        connections.value = result.data || []
+      } else {
+        throw new Error(result.error || 'Failed to load connections')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function fetchConfigs() {
+    loading.value = true
+    error.value = null
+    try {
+      // Load all connections first
+      await fetchConnections()
+      
+      configs.value = []
+      // Load configs for each connection
+      for (const conn of connections.value) {
+        const response = await fetch(`/api/sync/configs?connection_id=${conn.config.id}`)
+        const result = await response.json()
+        if (result.success && result.data) {
+          configs.value.push(...result.data)
+        }
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function createConfig(configData) {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await fetch('/api/sync/configs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(configData)
+      })
+      const result = await response.json()
+      if (result.success) {
+        await fetchConfigs()
+        return result.data
+      } else {
+        throw new Error(result.error || 'Failed to create config')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function updateConfig(configId, configData) {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await fetch(`/api/sync/configs/${configId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(configData)
+      })
+      const result = await response.json()
+      if (result.success) {
+        await fetchConfigs()
+      } else {
+        throw new Error(result.error || 'Failed to update config')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function deleteConfig(configId) {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await fetch(`/api/sync/configs/${configId}`, {
+        method: 'DELETE'
+      })
+      const result = await response.json()
+      if (result.success) {
+        await fetchConfigs()
+      } else {
+        throw new Error(result.error || 'Failed to delete config')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function startSync(configId) {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await fetch('/api/sync/jobs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ config_id: configId })
+      })
+      const result = await response.json()
+      if (result.success) {
+        return result.data
+      } else {
+        throw new Error(result.error || 'Failed to start sync')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return {
+    configs,
+    connections,
+    loading,
+    error,
+    configCount,
+    enabledConfigs,
+    fetchConnections,
+    fetchConfigs,
+    createConfig,
+    updateConfig,
+    deleteConfig,
+    startSync
+  }
+})
