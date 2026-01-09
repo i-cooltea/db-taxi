@@ -3,3 +3,12 @@ db-taxi
 configs/config.yaml.*
 configs/*.yaml
 frontend/node_modules
+
+# ===================== MAC系统垃圾文件【重中之重！你的元凶】=====================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
