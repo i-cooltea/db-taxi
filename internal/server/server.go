@@ -468,6 +468,16 @@ func (s *Server) registerSyncRoutes(api *gin.RouterGroup) {
 			configs.GET("/:id", s.getSyncConfig)
 			configs.PUT("/:id", s.updateSyncConfig)
 			configs.DELETE("/:id", s.deleteSyncConfig)
+
+			// Table mapping routes
+			configs.GET("/:id/tables", s.getRemoteTables)
+			configs.GET("/:id/tables/:table/schema", s.getRemoteTableSchema)
+			configs.GET("/:id/mappings", s.getTableMappings)
+			configs.POST("/:id/mappings", s.addTableMapping)
+			configs.PUT("/:id/mappings/:mapping_id", s.updateTableMapping)
+			configs.DELETE("/:id/mappings/:mapping_id", s.removeTableMapping)
+			configs.POST("/:id/mappings/:mapping_id/toggle", s.toggleTableMapping)
+			configs.POST("/:id/mappings/:mapping_id/sync-mode", s.setTableSyncMode)
 		}
 
 		// Job management routes
@@ -477,7 +487,11 @@ func (s *Server) registerSyncRoutes(api *gin.RouterGroup) {
 			jobs.POST("", s.startSyncJob)
 			jobs.GET("/:id", s.getSyncJob)
 			jobs.POST("/:id/stop", s.stopSyncJob)
+			jobs.POST("/:id/cancel", s.cancelSyncJob)
 			jobs.GET("/:id/logs", s.getSyncJobLogs)
+			jobs.GET("/:id/progress", s.getSyncJobProgress)
+			jobs.GET("/active", s.getActiveSyncJobs)
+			jobs.GET("/history", s.getSyncJobHistory)
 		}
 
 		// System routes
@@ -818,13 +832,330 @@ func (s *Server) deleteSyncConfig(c *gin.Context) {
 	})
 }
 
+// Table mapping handlers
+
+func (s *Server) getRemoteTables(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	// Get connection ID from sync config
+	configID := c.Param("id")
+	config, err := s.syncManager.GetSyncManager().GetSyncConfig(c.Request.Context(), configID)
+	if err != nil {
+		s.logger.WithError(err).WithField("config_id", configID).Error("Failed to get sync config")
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	tables, err := s.syncManager.GetSyncManager().GetRemoteTables(c.Request.Context(), config.ConnectionID)
+	if err != nil {
+		s.logger.WithError(err).WithField("connection_id", config.ConnectionID).Error("Failed to get remote tables")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    tables,
+		"meta": gin.H{
+			"total": len(tables),
+		},
+	})
+}
+
+func (s *Server) getRemoteTableSchema(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	// Get connection ID from sync config
+	configID := c.Param("id")
+	tableName := c.Param("table")
+
+	config, err := s.syncManager.GetSyncManager().GetSyncConfig(c.Request.Context(), configID)
+	if err != nil {
+		s.logger.WithError(err).WithField("config_id", configID).Error("Failed to get sync config")
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	schema, err := s.syncManager.GetSyncManager().GetRemoteTableSchema(c.Request.Context(), config.ConnectionID, tableName)
+	if err != nil {
+		s.logger.WithError(err).WithFields(logrus.Fields{
+			"connection_id": config.ConnectionID,
+			"table":         tableName,
+		}).Error("Failed to get remote table schema")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    schema,
+	})
+}
+
+func (s *Server) getTableMappings(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	configID := c.Param("id")
+	mappings, err := s.syncManager.GetSyncManager().GetTableMappings(c.Request.Context(), configID)
+	if err != nil {
+		s.logger.WithError(err).WithField("config_id", configID).Error("Failed to get table mappings")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    mappings,
+		"meta": gin.H{
+			"total": len(mappings),
+		},
+	})
+}
+
+func (s *Server) addTableMapping(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	configID := c.Param("id")
+	var mapping sync.TableMapping
+	if err := c.ShouldBindJSON(&mapping); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	if err := s.syncManager.GetSyncManager().AddTableMapping(c.Request.Context(), configID, &mapping); err != nil {
+		s.logger.WithError(err).WithField("config_id", configID).Error("Failed to add table mapping")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"data":    mapping,
+	})
+}
+
+func (s *Server) updateTableMapping(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	mappingID := c.Param("mapping_id")
+	var mapping sync.TableMapping
+	if err := c.ShouldBindJSON(&mapping); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	if err := s.syncManager.GetSyncManager().UpdateTableMapping(c.Request.Context(), mappingID, &mapping); err != nil {
+		s.logger.WithError(err).WithField("mapping_id", mappingID).Error("Failed to update table mapping")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Table mapping updated successfully",
+	})
+}
+
+func (s *Server) removeTableMapping(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	mappingID := c.Param("mapping_id")
+	if err := s.syncManager.GetSyncManager().RemoveTableMapping(c.Request.Context(), mappingID); err != nil {
+		s.logger.WithError(err).WithField("mapping_id", mappingID).Error("Failed to remove table mapping")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Table mapping removed successfully",
+	})
+}
+
+func (s *Server) toggleTableMapping(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	mappingID := c.Param("mapping_id")
+	var request struct {
+		Enabled bool `json:"enabled"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	if err := s.syncManager.GetSyncManager().ToggleTableMapping(c.Request.Context(), mappingID, request.Enabled); err != nil {
+		s.logger.WithError(err).WithField("mapping_id", mappingID).Error("Failed to toggle table mapping")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Table mapping toggled successfully",
+	})
+}
+
+func (s *Server) setTableSyncMode(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	mappingID := c.Param("mapping_id")
+	var request struct {
+		SyncMode sync.SyncMode `json:"sync_mode" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	if err := s.syncManager.GetSyncManager().SetTableSyncMode(c.Request.Context(), mappingID, request.SyncMode); err != nil {
+		s.logger.WithError(err).WithField("mapping_id", mappingID).Error("Failed to set table sync mode")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Table sync mode updated successfully",
+	})
+}
+
 // Job management handlers
 
 func (s *Server) getSyncJobs(c *gin.Context) {
-	// TODO: Implement job listing
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"success": false,
-		"error":   "Job listing not implemented yet",
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	// Parse query parameters
+	limit := 50
+	offset := 0
+	if l := c.Query("limit"); l != "" {
+		if parsed, err := fmt.Sscanf(l, "%d", &limit); err != nil || parsed != 1 {
+			limit = 50
+		}
+	}
+	if o := c.Query("offset"); o != "" {
+		if parsed, err := fmt.Sscanf(o, "%d", &offset); err != nil || parsed != 1 {
+			offset = 0
+		}
+	}
+
+	// Get job history
+	jobs, err := s.syncManager.GetSyncManager().GetSyncHistory(c.Request.Context(), limit, offset)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get sync jobs")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    jobs,
+		"meta": gin.H{
+			"limit":  limit,
+			"offset": offset,
+			"count":  len(jobs),
+		},
 	})
 }
 
@@ -917,10 +1248,154 @@ func (s *Server) stopSyncJob(c *gin.Context) {
 }
 
 func (s *Server) getSyncJobLogs(c *gin.Context) {
-	// TODO: Implement job logs retrieval
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"success": false,
-		"error":   "Job logs not implemented yet",
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	id := c.Param("id")
+	logs, err := s.syncManager.GetSyncManager().GetJobLogs(c.Request.Context(), id)
+	if err != nil {
+		s.logger.WithError(err).WithField("job_id", id).Error("Failed to get sync job logs")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    logs,
+		"meta": gin.H{
+			"total": len(logs),
+		},
+	})
+}
+
+func (s *Server) cancelSyncJob(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	id := c.Param("id")
+	if err := s.syncManager.GetSyncManager().StopSync(c.Request.Context(), id); err != nil {
+		s.logger.WithError(err).WithField("id", id).Error("Failed to cancel sync job")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Sync job cancelled successfully",
+	})
+}
+
+func (s *Server) getSyncJobProgress(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	id := c.Param("id")
+	progress, err := s.syncManager.GetSyncManager().GetJobProgress(c.Request.Context(), id)
+	if err != nil {
+		s.logger.WithError(err).WithField("job_id", id).Error("Failed to get sync job progress")
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    progress,
+	})
+}
+
+func (s *Server) getActiveSyncJobs(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	jobs, err := s.syncManager.GetSyncManager().GetActiveJobs(c.Request.Context())
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get active sync jobs")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    jobs,
+		"meta": gin.H{
+			"total": len(jobs),
+		},
+	})
+}
+
+func (s *Server) getSyncJobHistory(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	// Parse query parameters
+	limit := 50
+	offset := 0
+	if l := c.Query("limit"); l != "" {
+		if parsed, err := fmt.Sscanf(l, "%d", &limit); err != nil || parsed != 1 {
+			limit = 50
+		}
+	}
+	if o := c.Query("offset"); o != "" {
+		if parsed, err := fmt.Sscanf(o, "%d", &offset); err != nil || parsed != 1 {
+			offset = 0
+		}
+	}
+
+	history, err := s.syncManager.GetSyncManager().GetSyncHistory(c.Request.Context(), limit, offset)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get sync job history")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    history,
+		"meta": gin.H{
+			"limit":  limit,
+			"offset": offset,
+			"count":  len(history),
+		},
 	})
 }
 
