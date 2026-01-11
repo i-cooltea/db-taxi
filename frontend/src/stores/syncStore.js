@@ -34,6 +34,104 @@ export const useSyncStore = defineStore('sync', () => {
     }
   }
 
+  async function createConnection(connectionData) {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await fetch('/api/sync/connections', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(connectionData)
+      })
+      const result = await response.json()
+      if (result.success) {
+        await fetchConnections()
+        return result.data
+      } else {
+        throw new Error(result.error || 'Failed to create connection')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function updateConnection(connectionId, connectionData) {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await fetch(`/api/sync/connections/${connectionId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(connectionData)
+      })
+      const result = await response.json()
+      if (result.success) {
+        await fetchConnections()
+      } else {
+        throw new Error(result.error || 'Failed to update connection')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function deleteConnection(connectionId) {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await fetch(`/api/sync/connections/${connectionId}`, {
+        method: 'DELETE'
+      })
+      const result = await response.json()
+      if (result.success) {
+        await fetchConnections()
+      } else {
+        throw new Error(result.error || 'Failed to delete connection')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function testConnection(connectionId) {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await fetch(`/api/sync/connections/${connectionId}/test`, {
+        method: 'POST'
+      })
+      const result = await response.json()
+      if (result.success) {
+        // Update the connection status in the local state
+        const conn = connections.value.find(c => c.config.id === connectionId)
+        if (conn) {
+          conn.status = result.data
+        }
+        return result.data
+      } else {
+        throw new Error(result.error || 'Failed to test connection')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function fetchConfigs() {
     loading.value = true
     error.value = null
@@ -163,6 +261,10 @@ export const useSyncStore = defineStore('sync', () => {
     configCount,
     enabledConfigs,
     fetchConnections,
+    createConnection,
+    updateConnection,
+    deleteConnection,
+    testConnection,
     fetchConfigs,
     createConfig,
     updateConfig,

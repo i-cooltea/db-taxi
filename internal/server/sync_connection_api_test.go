@@ -92,6 +92,15 @@ func (m *mockConnectionManager) TestConnection(ctx context.Context, id string) (
 	}, nil
 }
 
+func (m *mockConnectionManager) TestConnectionConfig(ctx context.Context, config *sync.ConnectionConfig) (*sync.ConnectionStatus, error) {
+	// Test connection without saving it
+	return &sync.ConnectionStatus{
+		Connected: true,
+		LastCheck: time.Now(),
+		Latency:   20,
+	}, nil
+}
+
 func (m *mockConnectionManager) Close() error {
 	return nil
 }

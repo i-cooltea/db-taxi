@@ -285,6 +285,21 @@ func (s *ConnectionManagerService) TestConnection(ctx context.Context, id string
 	return status, err
 }
 
+// TestConnectionConfig tests a connection configuration without saving it
+func (s *ConnectionManagerService) TestConnectionConfig(ctx context.Context, config *ConnectionConfig) (*ConnectionStatus, error) {
+	// Test the connection without saving or caching
+	status, err := s.testRemoteConnection(ctx, config)
+	if err != nil {
+		status = &ConnectionStatus{
+			Connected: false,
+			LastCheck: time.Now(),
+			Error:     err.Error(),
+		}
+	}
+
+	return status, nil // Return nil error so the status is always returned
+}
+
 // testRemoteConnection tests connectivity to a remote database
 func (s *ConnectionManagerService) testRemoteConnection(ctx context.Context, config *ConnectionConfig) (*ConnectionStatus, error) {
 	start := time.Now()

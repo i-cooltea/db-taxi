@@ -454,6 +454,7 @@ func (s *Server) registerSyncRoutes(api *gin.RouterGroup) {
 		{
 			connections.GET("", s.getSyncConnections)
 			connections.POST("", s.createSyncConnection)
+			connections.POST("/test", s.testSyncConnectionConfig)
 			connections.GET("/:id", s.getSyncConnection)
 			connections.PUT("/:id", s.updateSyncConnection)
 			connections.DELETE("/:id", s.deleteSyncConnection)
@@ -663,6 +664,41 @@ func (s *Server) testSyncConnection(c *gin.Context) {
 	status, err := s.syncManager.GetConnectionManager().TestConnection(c.Request.Context(), id)
 	if err != nil {
 		s.logger.WithError(err).WithField("id", id).Error("Failed to test sync connection")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    status,
+	})
+}
+
+func (s *Server) testSyncConnectionConfig(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	var config sync.ConnectionConfig
+	if err := c.ShouldBindJSON(&config); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	// Test the connection without saving it
+	status, err := s.syncManager.GetConnectionManager().TestConnectionConfig(c.Request.Context(), &config)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to test connection config")
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),

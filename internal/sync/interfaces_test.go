@@ -472,6 +472,10 @@ func (m *mockConnectionManager) TestConnection(ctx context.Context, id string) (
 	return nil, mockError("TestConnection")
 }
 
+func (m *mockConnectionManager) TestConnectionConfig(ctx context.Context, config *ConnectionConfig) (*ConnectionStatus, error) {
+	return nil, mockError("TestConnectionConfig")
+}
+
 func (m *mockConnectionManager) Close() error {
 	return mockError("Close")
 }

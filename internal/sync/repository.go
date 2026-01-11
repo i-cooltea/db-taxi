@@ -349,7 +349,7 @@ func (r *MySQLRepository) DeleteTableMapping(ctx context.Context, id string) err
 func (r *MySQLRepository) CreateSyncJob(ctx context.Context, job *SyncJob) error {
 	query := `
 		INSERT INTO sync_jobs (id, config_id, status, start_time, total_tables, completed_tables, total_rows, processed_rows, error_message)
-		VALUES (:id, :config_id, :status, :start_time, :total_tables, :completed_tables, :total_rows, :processed_rows, :error)
+		VALUES (:id, :config_id, :status, :start_time, :total_tables, :completed_tables, :total_rows, :processed_rows, :error_message)
 	`
 	_, err := r.db.NamedExecContext(ctx, query, job)
 	if err != nil {

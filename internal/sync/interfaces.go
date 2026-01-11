@@ -24,6 +24,9 @@ type ConnectionManager interface {
 	// TestConnection tests the connectivity of a connection
 	TestConnection(ctx context.Context, id string) (*ConnectionStatus, error)
 
+	// TestConnectionConfig tests a connection configuration without saving it
+	TestConnectionConfig(ctx context.Context, config *ConnectionConfig) (*ConnectionStatus, error)
+
 	// Close closes the connection manager and cleans up resources
 	Close() error
 }
