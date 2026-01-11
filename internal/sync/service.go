@@ -697,6 +697,7 @@ func (s *ConnectionManagerService) Close() error {
 type SyncManagerService struct {
 	*Service
 	monitoring MonitoringService
+	jobEngine  JobEngine
 }
 
 // NewSyncManager creates a new sync manager service
@@ -850,24 +851,51 @@ func (s *SyncManagerService) StartSync(ctx context.Context, configID string) (*S
 	}
 
 	// Log job event
-	if err := s.monitoring.LogJobEvent(ctx, job.ID, "", "info", "Sync job started"); err != nil {
+	if err := s.monitoring.LogJobEvent(ctx, job.ID, "", "info", "Sync job created"); err != nil {
 		s.logger.WithError(err).WithField("job_id", job.ID).Warn("Failed to log job event")
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"job_id":         job.ID,
-		"sync_config_id": configID,
-		"total_tables":   len(syncConfig.Tables),
-	}).Info("Sync job created successfully")
+	// Submit job to job engine for execution
+	if s.jobEngine != nil {
+		if err := s.jobEngine.SubmitJob(ctx, job); err != nil {
+			s.logger.WithError(err).WithField("job_id", job.ID).Error("Failed to submit job to engine")
 
-	// TODO: Submit job to job engine for execution
+			// Update job status to failed
+			job.Status = JobStatusFailed
+			job.Error = fmt.Sprintf("Failed to submit job: %v", err)
+			now := time.Now()
+			job.EndTime = &now
+
+			if updateErr := s.repo.UpdateSyncJob(ctx, job.ID, job); updateErr != nil {
+				s.logger.WithError(updateErr).Error("Failed to update job status")
+			}
+
+			return nil, fmt.Errorf("failed to submit job to engine: %w", err)
+		}
+
+		s.logger.WithFields(logrus.Fields{
+			"job_id":         job.ID,
+			"sync_config_id": configID,
+			"total_tables":   len(syncConfig.Tables),
+		}).Info("Sync job submitted to engine successfully")
+	} else {
+		s.logger.WithField("job_id", job.ID).Warn("Job engine not available, job will remain in pending state")
+	}
 
 	return job, nil
 }
 
 func (s *SyncManagerService) StopSync(ctx context.Context, jobID string) error {
-	// TODO: Implement job cancellation
-	s.logger.WithField("job_id", jobID).Info("Sync job stop requested")
+	if s.jobEngine == nil {
+		return fmt.Errorf("job engine not available")
+	}
+
+	// Cancel the job
+	if err := s.jobEngine.CancelJob(ctx, jobID); err != nil {
+		return fmt.Errorf("failed to cancel job: %w", err)
+	}
+
+	s.logger.WithField("job_id", jobID).Info("Sync job stopped successfully")
 	return nil
 }
 

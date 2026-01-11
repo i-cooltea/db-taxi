@@ -32,10 +32,23 @@ func NewManager(cfg *config.Config, db *sqlx.DB, logger *logrus.Logger) (*Manage
 	// Create repository
 	repo := NewMySQLRepository(db, logger)
 
+	// Create monitoring service
+	monitoring := NewMonitoringService(repo, logger)
+
+	// Create sync engine
+	syncEngine := NewSyncEngine(db, repo, logger)
+
+	// Create job engine
+	jobEngine := NewJobEngine(repo, logger, monitoring, syncEngine)
+
 	// Create services
 	connectionManager := NewConnectionManager(repo, logger, db)
 	syncManager := NewSyncManager(repo, logger, db)
-	syncEngine := NewSyncEngine(db, repo, logger)
+
+	// Set job engine reference in sync manager
+	if syncMgrService, ok := syncManager.(*SyncManagerService); ok {
+		syncMgrService.jobEngine = jobEngine
+	}
 
 	manager := &Manager{
 		config:            cfg,
@@ -45,6 +58,7 @@ func NewManager(cfg *config.Config, db *sqlx.DB, logger *logrus.Logger) (*Manage
 		connectionManager: connectionManager,
 		syncManager:       syncManager,
 		syncEngine:        syncEngine,
+		jobEngine:         jobEngine,
 	}
 
 	logger.Info("Sync system manager initialized successfully")
@@ -60,8 +74,13 @@ func (m *Manager) Initialize(ctx context.Context) error {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-	// TODO: Initialize job engine
-	// TODO: Initialize mapping manager
+	// Start job engine
+	if m.jobEngine != nil {
+		if err := m.jobEngine.Start(); err != nil {
+			return fmt.Errorf("failed to start job engine: %w", err)
+		}
+		m.logger.Info("Job engine started successfully")
+	}
 
 	m.logger.Info("Sync system initialized successfully")
 	return nil
@@ -96,9 +115,19 @@ func (m *Manager) GetSyncEngine() SyncEngine {
 func (m *Manager) Shutdown(ctx context.Context) error {
 	m.logger.Info("Shutting down sync system...")
 
-	// TODO: Stop all running jobs
-	// TODO: Close connections
-	// TODO: Cleanup resources
+	// Stop job engine
+	if m.jobEngine != nil {
+		if err := m.jobEngine.Stop(); err != nil {
+			m.logger.WithError(err).Error("Failed to stop job engine")
+		}
+	}
+
+	// Close connection manager
+	if cm, ok := m.connectionManager.(*ConnectionManagerService); ok {
+		if err := cm.Close(); err != nil {
+			m.logger.WithError(err).Error("Failed to close connection manager")
+		}
+	}
 
 	m.logger.Info("Sync system shutdown completed")
 	return nil

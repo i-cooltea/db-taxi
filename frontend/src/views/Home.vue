@@ -25,6 +25,12 @@
         <h2>同步监控</h2>
         <p>监控同步任务状态和进度</p>
       </router-link>
+
+      <router-link to="/config" class="feature-card">
+        <div class="feature-icon">⚙️</div>
+        <h2>配置管理</h2>
+        <p>导入、导出和备份同步配置</p>
+      </router-link>
     </div>
   </div>
 </template>

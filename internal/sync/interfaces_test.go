@@ -568,6 +568,14 @@ func (m *mockSyncManager) GetJobLogs(ctx context.Context, jobID string) ([]*Sync
 
 type mockJobEngine struct{}
 
+func (m *mockJobEngine) Start() error {
+	return mockError("Start")
+}
+
+func (m *mockJobEngine) Stop() error {
+	return mockError("Stop")
+}
+
 func (m *mockJobEngine) SubmitJob(ctx context.Context, job *SyncJob) error {
 	return mockError("SubmitJob")
 }

@@ -8,6 +8,7 @@
       <nav class="nav-links">
         <router-link to="/" class="nav-link">🏠 首页</router-link>
         <router-link to="/sync" class="nav-link">🔄 同步配置</router-link>
+        <router-link to="/config" class="nav-link">⚙️ 配置管理</router-link>
       </nav>
     </header>
 

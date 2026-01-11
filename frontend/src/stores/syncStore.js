@@ -253,6 +253,95 @@ export const useSyncStore = defineStore('sync', () => {
     }
   }
 
+  async function exportConfig() {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await fetch('/api/sync/config/export')
+      const result = await response.json()
+      if (result.success) {
+        return result.data
+      } else {
+        throw new Error(result.error || 'Failed to export config')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function importConfig(configData, resolveConflicts = false) {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await fetch('/api/sync/config/import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          config: configData,
+          resolve_conflicts: resolveConflicts
+        })
+      })
+      const result = await response.json()
+      if (result.success) {
+        // Refresh configs after import
+        await fetchConfigs()
+        return result
+      } else {
+        throw new Error(result.error || 'Failed to import config')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function validateConfig(configData) {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await fetch('/api/sync/config/validate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(configData)
+      })
+      const result = await response.json()
+      return result
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function backupConfig() {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await fetch('/api/sync/config/backup')
+      const result = await response.json()
+      if (result.success) {
+        return result.data
+      } else {
+        throw new Error(result.error || 'Failed to backup config')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     configs,
     connections,
@@ -269,6 +358,10 @@ export const useSyncStore = defineStore('sync', () => {
     createConfig,
     updateConfig,
     deleteConfig,
-    startSync
+    startSync,
+    exportConfig,
+    importConfig,
+    validateConfig,
+    backupConfig
   }
 })

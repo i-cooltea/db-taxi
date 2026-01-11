@@ -111,6 +111,12 @@ type SyncManager interface {
 
 // JobEngine manages the execution of synchronization jobs
 type JobEngine interface {
+	// Start initializes and starts the job engine
+	Start() error
+
+	// Stop gracefully shuts down the job engine
+	Stop() error
+
 	// SubmitJob submits a sync job for execution
 	SubmitJob(ctx context.Context, job *SyncJob) error
 

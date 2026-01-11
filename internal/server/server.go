@@ -499,6 +499,12 @@ func (s *Server) registerSyncRoutes(api *gin.RouterGroup) {
 		// System routes
 		sync.GET("/status", s.getSyncStatus)
 		sync.GET("/stats", s.getSyncStats)
+
+		// Config management routes
+		sync.GET("/config/export", s.exportConfig)
+		sync.POST("/config/import", s.importConfig)
+		sync.POST("/config/validate", s.validateConfig)
+		sync.GET("/config/backup", s.backupConfig)
 	}
 }
 
@@ -1515,5 +1521,152 @@ func (s *Server) getSyncStats(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    stats,
+	})
+}
+
+// Config management handlers
+
+func (s *Server) exportConfig(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	config, err := s.syncManager.GetMappingManager().ExportConfig(c.Request.Context())
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to export config")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// Set headers for file download
+	filename := fmt.Sprintf("sync-config-%s.json", time.Now().Format("20060102-150405"))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Header("Content-Type", "application/json")
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    config,
+	})
+}
+
+func (s *Server) importConfig(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	var request struct {
+		Config           *sync.ConfigExport `json:"config" binding:"required"`
+		ResolveConflicts bool               `json:"resolve_conflicts"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	// Validate config first
+	if err := s.syncManager.GetMappingManager().ValidateConfig(c.Request.Context(), request.Config); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Configuration validation failed: " + err.Error(),
+		})
+		return
+	}
+
+	// Import with conflict resolution
+	if err := s.syncManager.GetMappingManager().ImportConfigWithConflictResolution(
+		c.Request.Context(),
+		request.Config,
+		request.ResolveConflicts,
+	); err != nil {
+		s.logger.WithError(err).Error("Failed to import config")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Configuration imported successfully",
+	})
+}
+
+func (s *Server) validateConfig(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	var config sync.ConfigExport
+	if err := c.ShouldBindJSON(&config); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	if err := s.syncManager.GetMappingManager().ValidateConfig(c.Request.Context(), &config); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"valid":   false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"valid":   true,
+		"message": "Configuration is valid",
+	})
+}
+
+func (s *Server) backupConfig(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	backup, err := s.syncManager.GetMappingManager().BackupConfig(c.Request.Context())
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to backup config")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// Set headers for file download
+	filename := fmt.Sprintf("sync-config-backup-%s.json", time.Now().Format("20060102-150405"))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Header("Content-Type", "application/json")
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    backup,
 	})
 }

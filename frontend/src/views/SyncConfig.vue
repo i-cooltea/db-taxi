@@ -8,6 +8,7 @@
       <nav class="nav-links">
         <router-link to="/" class="nav-link">🏠 首页</router-link>
         <router-link to="/connections" class="nav-link">🔌 连接管理</router-link>
+        <router-link to="/config" class="nav-link">⚙️ 配置管理</router-link>
       </nav>
     </header>
 
