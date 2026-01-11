@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"db-taxi/internal/config"
+	"db-taxi/internal/migration"
 )
 
 // Manager represents the main sync system manager
@@ -137,22 +138,21 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 func (m *Manager) runMigrations(ctx context.Context) error {
 	m.logger.Info("Running sync system database migrations...")
 
-	// TODO: Implement proper migration system
-	// For now, we'll assume the tables are created manually or by external migration tool
+	// Import migration package
+	migrationManager := migration.NewManager(m.db.DB, m.logger)
 
-	// Check if sync tables exist
-	var count int
-	err := m.db.GetContext(ctx, &count, "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'connections'")
+	// Run all pending migrations
+	if err := migrationManager.Migrate(ctx); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	// Get current version
+	version, err := migrationManager.GetCurrentVersion(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to check for sync tables: %w", err)
+		return fmt.Errorf("failed to get migration version: %w", err)
 	}
 
-	if count == 0 {
-		m.logger.Warn("Sync tables not found. Please run the migration script: migrations/001_create_sync_tables.sql")
-		return fmt.Errorf("sync tables not found, please run migrations")
-	}
-
-	m.logger.Info("Sync system database migrations completed")
+	m.logger.Infof("Sync system database migrations completed (current version: %d)", version)
 	return nil
 }
 

@@ -1,17 +1,6 @@
--- Migration: Create synchronization system tables
--- Version: 001
+-- Version: 1
+-- Name: create_sync_tables
 -- Description: Creates all tables required for the database synchronization system
--- 
--- NOTE: This file is kept for reference only.
--- The actual migrations are now managed by the migration system in internal/migration/sql/
--- Please use the migration CLI tool or let the application run migrations automatically.
--- 
--- To run migrations manually:
---   go run cmd/migrate/main.go -host localhost -user root -password secret -database mydb
--- 
--- Or use the convenience script:
---   ./scripts/migrate.sh -h localhost -u root -P secret -d mydb
---
 
 -- Create connections table for remote database configurations
 CREATE TABLE IF NOT EXISTS connections (
@@ -28,8 +17,9 @@ CREATE TABLE IF NOT EXISTS connections (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_connections_name (name),
     UNIQUE KEY uk_connections_local_db (local_db_name),
-    INDEX idx_connections_created_at (created_at)
-);
+    INDEX idx_connections_created_at (created_at),
+    INDEX idx_connections_host_port (host, port)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create sync_configs table for synchronization configurations
 CREATE TABLE IF NOT EXISTS sync_configs (
@@ -45,8 +35,9 @@ CREATE TABLE IF NOT EXISTS sync_configs (
     FOREIGN KEY (connection_id) REFERENCES connections(id) ON DELETE CASCADE,
     UNIQUE KEY uk_sync_configs_connection_name (connection_id, name),
     INDEX idx_sync_configs_enabled (enabled),
-    INDEX idx_sync_configs_created_at (created_at)
-);
+    INDEX idx_sync_configs_created_at (created_at),
+    INDEX idx_sync_configs_sync_mode (sync_mode)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create table_mappings table for table mapping configurations
 CREATE TABLE IF NOT EXISTS table_mappings (
@@ -62,8 +53,9 @@ CREATE TABLE IF NOT EXISTS table_mappings (
     FOREIGN KEY (sync_config_id) REFERENCES sync_configs(id) ON DELETE CASCADE,
     UNIQUE KEY uk_table_mappings_sync_source (sync_config_id, source_table),
     INDEX idx_table_mappings_enabled (enabled),
-    INDEX idx_table_mappings_created_at (created_at)
-);
+    INDEX idx_table_mappings_created_at (created_at),
+    INDEX idx_table_mappings_sync_mode (sync_mode)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create sync_jobs table for synchronization jobs
 CREATE TABLE IF NOT EXISTS sync_jobs (
@@ -82,8 +74,9 @@ CREATE TABLE IF NOT EXISTS sync_jobs (
     INDEX idx_sync_jobs_status (status),
     INDEX idx_sync_jobs_start_time (start_time),
     INDEX idx_sync_jobs_config_id (config_id),
-    INDEX idx_sync_jobs_created_at (created_at)
-);
+    INDEX idx_sync_jobs_created_at (created_at),
+    INDEX idx_sync_jobs_status_start_time (status, start_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create sync_logs table for synchronization operation logs
 CREATE TABLE IF NOT EXISTS sync_logs (
@@ -98,7 +91,7 @@ CREATE TABLE IF NOT EXISTS sync_logs (
     INDEX idx_sync_logs_level (level),
     INDEX idx_sync_logs_created_at (created_at),
     INDEX idx_sync_logs_table_name (table_name)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create sync_checkpoints table for incremental sync state
 CREATE TABLE IF NOT EXISTS sync_checkpoints (
@@ -113,7 +106,7 @@ CREATE TABLE IF NOT EXISTS sync_checkpoints (
     UNIQUE KEY uk_sync_checkpoints_table_mapping (table_mapping_id),
     INDEX idx_sync_checkpoints_last_sync_time (last_sync_time),
     INDEX idx_sync_checkpoints_updated_at (updated_at)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create database_mappings table for tracking remote to local database mappings
 CREATE TABLE IF NOT EXISTS database_mappings (
@@ -124,10 +117,4 @@ CREATE TABLE IF NOT EXISTS database_mappings (
     FOREIGN KEY (remote_connection_id) REFERENCES connections(id) ON DELETE CASCADE,
     INDEX idx_database_mappings_local_db (local_database_name),
     INDEX idx_database_mappings_created_at (created_at)
-);
-
--- Create indexes for better query performance
-CREATE INDEX idx_connections_host_port ON connections(host, port);
-CREATE INDEX idx_sync_configs_sync_mode ON sync_configs(sync_mode);
-CREATE INDEX idx_table_mappings_sync_mode ON table_mappings(sync_mode);
-CREATE INDEX idx_sync_jobs_status_start_time ON sync_jobs(status, start_time);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

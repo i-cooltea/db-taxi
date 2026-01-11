@@ -69,6 +69,43 @@ go build -o db-taxi .
 
 打开浏览器访问：http://localhost:8080
 
+## 数据库迁移
+
+DB-Taxi 包含自动数据库迁移系统，在应用启动时自动创建和更新所需的数据库表。
+
+### 自动迁移（推荐）
+
+应用启动时会自动运行迁移：
+
+```bash
+./db-taxi -host localhost -user root -password secret -database mydb
+```
+
+### 手动迁移
+
+如需手动控制迁移，可使用以下命令：
+
+```bash
+# 运行所有待执行的迁移
+make migrate HOST=localhost USER=root PASSWORD=secret DB=mydb
+
+# 检查迁移状态
+make migrate-status HOST=localhost USER=root DB=mydb
+
+# 查看当前版本
+make migrate-version HOST=localhost USER=root DB=mydb
+```
+
+或使用便捷脚本：
+
+```bash
+./scripts/migrate.sh -h localhost -u root -P secret -d mydb
+```
+
+详细文档请参考：
+- [完整迁移文档](docs/MIGRATIONS.md)
+- [快速入门指南](docs/MIGRATION_QUICK_START.md)
+
 ## 命令行选项
 
 ```bash
