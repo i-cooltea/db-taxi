@@ -60,7 +60,15 @@
             </div>
             <div class="job-status">
               <span class="status-badge running">运行中</span>
-              <button @click="viewJobDetails(job.job_id)" class="btn btn-sm">查看详情</button>
+              <div class="job-actions">
+                <button @click="stopJob(job.job_id)" class="btn btn-sm btn-warning" :disabled="loading">
+                  ⏸️ 停止
+                </button>
+                <button @click="cancelJob(job.job_id)" class="btn btn-sm btn-danger" :disabled="loading">
+                  ❌ 取消
+                </button>
+                <button @click="viewJobDetails(job.job_id)" class="btn btn-sm">查看详情</button>
+              </div>
             </div>
           </div>
           
@@ -113,6 +121,9 @@
       <div class="card-header">
         <h2>📜 同步历史</h2>
         <div class="header-actions">
+          <button @click="showStartSyncModal = true" class="btn btn-primary" :disabled="loading">
+            ▶️ 启动同步
+          </button>
           <button @click="refreshHistory" class="btn btn-secondary" :disabled="loading">
             {{ loading ? '刷新中...' : '🔄 刷新' }}
           </button>
@@ -213,6 +224,48 @@
         </div>
       </div>
     </div>
+
+    <!-- Start Sync Modal -->
+    <div v-if="showStartSyncModal" class="modal-overlay" @click="closeStartSyncModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2>▶️ 启动同步任务</h2>
+          <button @click="closeStartSyncModal" class="close-btn">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>选择同步配置</label>
+            <select v-model="selectedConfigId" class="form-control">
+              <option value="">请选择配置...</option>
+              <option v-for="config in availableConfigs" :key="config.id" :value="config.id">
+                {{ config.name }} ({{ config.connection_name }})
+              </option>
+            </select>
+          </div>
+          <div v-if="selectedConfigId" class="config-info">
+            <h4>配置详情</h4>
+            <div class="info-item">
+              <span class="info-label">连接:</span>
+              <span class="info-value">{{ getSelectedConfigInfo().connection_name }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">同步模式:</span>
+              <span class="info-value">{{ getSelectedConfigInfo().sync_mode === 'full' ? '全量同步' : '增量同步' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">表数量:</span>
+              <span class="info-value">{{ getSelectedConfigInfo().table_count || 0 }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button @click="closeStartSyncModal" class="btn btn-secondary">取消</button>
+          <button @click="startSync" class="btn btn-primary" :disabled="!selectedConfigId || loading">
+            {{ loading ? '启动中...' : '启动同步' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -227,9 +280,12 @@ const stats = ref({})
 const activeJobs = ref([])
 const jobHistory = ref([])
 const jobLogs = ref([])
+const availableConfigs = ref([])
+const selectedConfigId = ref('')
 const loading = ref(false)
 const loadingLogs = ref(false)
 const showLogsModal = ref(false)
+const showStartSyncModal = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const refreshInterval = ref(null)
@@ -255,7 +311,8 @@ async function loadAllData() {
     await Promise.all([
       loadStats(),
       loadActiveJobs(),
-      loadHistory()
+      loadHistory(),
+      loadAvailableConfigs()
     ])
   } catch (error) {
     console.error('Failed to load monitoring data:', error)
@@ -301,6 +358,18 @@ async function loadHistory() {
   }
 }
 
+async function loadAvailableConfigs() {
+  try {
+    const response = await fetch('/api/sync/configs')
+    const result = await response.json()
+    if (result.success) {
+      availableConfigs.value = result.data || []
+    }
+  } catch (error) {
+    console.error('Failed to load available configs:', error)
+  }
+}
+
 async function refreshActiveJobs() {
   await loadActiveJobs()
   await loadStats()
@@ -335,6 +404,95 @@ async function viewJobLogs(jobId) {
 function closeLogsModal() {
   showLogsModal.value = false
   jobLogs.value = []
+}
+
+function closeStartSyncModal() {
+  showStartSyncModal.value = false
+  selectedConfigId.value = ''
+}
+
+async function startSync() {
+  if (!selectedConfigId.value) return
+  
+  loading.value = true
+  try {
+    const response = await fetch('/api/sync/jobs', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        config_id: selectedConfigId.value
+      })
+    })
+    
+    const result = await response.json()
+    if (result.success) {
+      alert('同步任务已启动！')
+      closeStartSyncModal()
+      await loadAllData()
+    } else {
+      alert('启动失败: ' + (result.error || '未知错误'))
+    }
+  } catch (error) {
+    console.error('Failed to start sync:', error)
+    alert('启动失败: ' + error.message)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function stopJob(jobId) {
+  if (!confirm('确定要停止这个同步任务吗？')) return
+  
+  loading.value = true
+  try {
+    const response = await fetch(`/api/sync/jobs/${jobId}/stop`, {
+      method: 'POST'
+    })
+    
+    const result = await response.json()
+    if (result.success) {
+      alert('任务已停止')
+      await refreshActiveJobs()
+    } else {
+      alert('停止失败: ' + (result.error || '未知错误'))
+    }
+  } catch (error) {
+    console.error('Failed to stop job:', error)
+    alert('停止失败: ' + error.message)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function cancelJob(jobId) {
+  if (!confirm('确定要取消这个同步任务吗？取消后任务将无法恢复。')) return
+  
+  loading.value = true
+  try {
+    const response = await fetch(`/api/sync/jobs/${jobId}/cancel`, {
+      method: 'POST'
+    })
+    
+    const result = await response.json()
+    if (result.success) {
+      alert('任务已取消')
+      await refreshActiveJobs()
+    } else {
+      alert('取消失败: ' + (result.error || '未知错误'))
+    }
+  } catch (error) {
+    console.error('Failed to cancel job:', error)
+    alert('取消失败: ' + error.message)
+  } finally {
+    loading.value = false
+  }
+}
+
+function getSelectedConfigInfo() {
+  const config = availableConfigs.value.find(c => c.id === selectedConfigId.value)
+  return config || {}
 }
 
 function viewJobDetails(jobId) {
@@ -558,7 +716,13 @@ function nextPage() {
 
 .job-status {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.job-actions {
+  display: flex;
   gap: 0.5rem;
 }
 
@@ -908,5 +1072,95 @@ function nextPage() {
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.btn-warning {
+  background: #f59e0b;
+  color: white;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: #d97706;
+}
+
+.btn-danger {
+  background: #ef4444;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+/* Modal Footer */
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* Form Styles */
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  transition: border-color 0.2s;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* Config Info */
+.config-info {
+  background: #f9fafb;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.config-info h4 {
+  margin: 0 0 1rem 0;
+  color: #1f2937;
+  font-size: 1rem;
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.info-item:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.info-value {
+  color: #1f2937;
+  font-weight: 500;
+  font-size: 0.875rem;
 }
 </style>
