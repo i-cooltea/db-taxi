@@ -1,0 +1,193 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: db-taxi
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-taxi-config
+  namespace: db-taxi
+data:
+  config.yaml: |
+    server:
+      port: 8080
+      host: "0.0.0.0"
+      read_timeout: "30s"
+      write_timeout: "30s"
+    
+    database:
+      host: "mysql-service"
+      port: 3306
+      username: "db_user"
+      database: "production_db"
+      ssl: true
+      max_open_conns: 50
+      max_idle_conns: 10
+      conn_max_lifetime: "10m"
+    
+    security:
+      session_timeout: "15m"
+      read_only_mode: false
+      enable_audit: true
+    
+    logging:
+      level: "info"
+      format: "json"
+      output: "stdout"
+    
+    sync:
+      enabled: true
+      max_concurrency: 10
+      batch_size: 2000
+      retry_attempts: 3
+      retry_delay: "30s"
+      job_timeout: "2h"
+      cleanup_age: "30d"
+      enable_compression: true
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-taxi-secrets
+  namespace: db-taxi
+type: Opaque
+stringData:
+  db-password: "your-secure-password-here"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db-taxi
+  namespace: db-taxi
+  labels:
+    app: db-taxi
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: db-taxi
+  template:
+    metadata:
+      labels:
+        app: db-taxi
+    spec:
+      containers:
+      - name: db-taxi
+        image: db-taxi:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: DBT_DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-taxi-secrets
+              key: db-password
+        volumeMounts:
+        - name: config
+          mountPath: /app/config.yaml
+          subPath: config.yaml
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: config
+        configMap:
+          name: db-taxi-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db-taxi-service
+  namespace: db-taxi
+  labels:
+    app: db-taxi
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: db-taxi
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: db-taxi-ingress
+  namespace: db-taxi
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  tls:
+  - hosts:
+    - db-taxi.example.com
+    secretName: db-taxi-tls
+  rules:
+  - host: db-taxi.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: db-taxi-service
+            port:
+              number: 80
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: db-taxi-hpa
+  namespace: db-taxi
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: db-taxi
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

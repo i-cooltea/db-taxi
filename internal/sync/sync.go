@@ -45,6 +45,7 @@ func NewManager(cfg *config.Config, db *sqlx.DB, logger *logrus.Logger) (*Manage
 	// Create services
 	connectionManager := NewConnectionManager(repo, logger, db)
 	syncManager := NewSyncManager(repo, logger, db)
+	mappingManager := NewMappingManager(db, repo, logger)
 
 	// Set job engine reference in sync manager
 	if syncMgrService, ok := syncManager.(*SyncManagerService); ok {
@@ -58,6 +59,7 @@ func NewManager(cfg *config.Config, db *sqlx.DB, logger *logrus.Logger) (*Manage
 		repo:              repo,
 		connectionManager: connectionManager,
 		syncManager:       syncManager,
+		mappingManager:    mappingManager,
 		syncEngine:        syncEngine,
 		jobEngine:         jobEngine,
 	}

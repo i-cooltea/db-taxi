@@ -10,7 +10,10 @@ DB-Taxi 是一个基于 Web 的 MySQL 数据库管理和浏览工具，提供直
 - 📚 **数据库浏览** - 列出所有可用的数据库
 - 📋 **表结构查看** - 查看表的详细信息，包括列、索引、约束等
 - 📊 **数据预览** - 支持分页查看表数据
-- 🌐 **Web 界面** - 现代化的响应式 Web 界面
+- 🔄 **数据库同步** - 支持多数据库连接管理和选择性表同步
+- 📦 **批量操作** - 支持批量数据传输和分批处理
+- 🔍 **同步监控** - 实时监控同步任务状态和进度
+- 🌐 **Web 界面** - 现代化的响应式 Web 界面（Vue 3 + Vite）
 - ⚡ **高性能** - 基于 Go 语言和 Gin 框架，支持高并发
 - 🔧 **配置灵活** - 支持配置文件和环境变量配置
 
@@ -106,6 +109,32 @@ make migrate-version HOST=localhost USER=root DB=mydb
 - [完整迁移文档](docs/MIGRATIONS.md)
 - [快速入门指南](docs/MIGRATION_QUICK_START.md)
 
+## 同步功能使用
+
+DB-Taxi 提供强大的数据库同步功能，支持多数据库连接管理和选择性表同步。
+
+### 快速开始同步
+
+1. **添加远程连接**：在 Web 界面的"连接管理"页面添加远程数据库连接
+2. **配置同步**：选择要同步的表，设置同步模式（全量/增量）
+3. **启动同步**：点击"立即同步"开始数据同步
+4. **监控进度**：在"同步监控"页面查看实时进度和日志
+
+### 同步功能特性
+
+- ✅ 多数据库连接管理
+- ✅ 选择性表同步
+- ✅ 全量和增量同步模式
+- ✅ 实时进度监控
+- ✅ 自动错误处理和重试
+- ✅ 配置导入导出
+- ✅ 批量操作和性能优化
+- ✅ 定时同步计划
+
+详细使用指南请参考：
+- [同步功能使用指南](docs/SYNC_USER_GUIDE.md)
+- [API 文档](docs/API.md)
+
 ## 命令行选项
 
 ```bash
@@ -195,6 +224,37 @@ export DBT_SERVER_PORT=8080
 - `GET /api/databases/{database}/tables/{table}` - 获取表的详细信息
 - `GET /api/databases/{database}/tables/{table}/data` - 获取表数据（支持分页）
 
+### 同步系统 API
+- `GET /api/sync/status` - 获取同步系统状态
+- `GET /api/sync/stats` - 获取同步系统统计信息
+
+#### 连接管理
+- `GET /api/sync/connections` - 获取所有同步连接
+- `POST /api/sync/connections` - 创建新的同步连接
+- `GET /api/sync/connections/{id}` - 获取指定连接详情
+- `PUT /api/sync/connections/{id}` - 更新连接配置
+- `DELETE /api/sync/connections/{id}` - 删除连接
+- `POST /api/sync/connections/{id}/test` - 测试连接
+
+#### 同步配置
+- `GET /api/sync/configs` - 获取同步配置列表
+- `POST /api/sync/configs` - 创建同步配置
+- `GET /api/sync/configs/{id}` - 获取配置详情
+- `PUT /api/sync/configs/{id}` - 更新配置
+- `DELETE /api/sync/configs/{id}` - 删除配置
+
+#### 任务管理
+- `GET /api/sync/jobs` - 获取同步任务列表
+- `POST /api/sync/jobs` - 启动新的同步任务
+- `GET /api/sync/jobs/{id}` - 获取任务详情
+- `POST /api/sync/jobs/{id}/stop` - 停止任务
+- `GET /api/sync/jobs/{id}/logs` - 获取任务日志
+
+#### 配置管理
+- `GET /api/sync/config/export` - 导出同步配置
+- `POST /api/sync/config/import` - 导入同步配置
+- `POST /api/sync/config/validate` - 验证配置文件
+
 ### 查询参数
 - `limit` - 限制返回的记录数（默认：10，最大：1000）
 - `offset` - 偏移量（默认：0）
@@ -207,6 +267,13 @@ db-taxi/
 ├── config.yaml.example       # 配置文件模板
 ├── static/                    # 静态文件
 │   └── index.html            # Web 界面
+├── frontend/                  # Vue 3 前端应用
+│   ├── src/
+│   │   ├── components/       # Vue 组件
+│   │   ├── views/            # 页面视图
+│   │   ├── stores/           # 状态管理
+│   │   └── router/           # 路由配置
+│   └── package.json
 ├── internal/
 │   ├── config/               # 配置管理
 │   │   ├── config.go
@@ -215,10 +282,29 @@ db-taxi/
 │   │   ├── server.go
 │   │   ├── middleware.go
 │   │   └── server_test.go
-│   └── database/             # 数据库操作
-│       ├── connection.go     # 连接池管理
-│       ├── schema.go         # 数据库结构探索
-│       └── connection_test.go
+│   ├── database/             # 数据库操作
+│   │   ├── connection.go     # 连接池管理
+│   │   ├── schema.go         # 数据库结构探索
+│   │   └── connection_test.go
+│   ├── sync/                 # 同步系统
+│   │   ├── sync.go           # 同步管理器
+│   │   ├── interfaces.go     # 接口定义
+│   │   ├── repository.go     # 数据访问层
+│   │   ├── service.go        # 业务逻辑层
+│   │   ├── job_engine.go     # 任务引擎
+│   │   ├── sync_engine.go    # 同步引擎
+│   │   └── mapping_manager.go # 映射管理器
+│   ├── migration/            # 数据库迁移
+│   │   ├── migration.go
+│   │   └── sql/              # SQL 迁移文件
+│   └── integration_test.go   # 集成测试
+├── docs/                     # 文档
+│   ├── SYSTEM_INTEGRATION.md # 系统集成文档
+│   ├── MIGRATIONS.md         # 迁移文档
+│   └── MIGRATION_QUICK_START.md
+├── scripts/                  # 脚本
+│   ├── migrate.sh            # 迁移脚本
+│   └── verify-integration.sh # 集成验证脚本
 └── go.mod                    # Go 模块定义
 ```
 
@@ -251,11 +337,51 @@ db-taxi/
 - `logging.format` - 日志格式（json, text）
 - `logging.output` - 日志输出（stdout, stderr, 文件路径）
 
+### 同步系统配置
+- `sync.enabled` - 是否启用同步系统（默认：true）
+- `sync.max_concurrency` - 最大并发同步任务数（默认：5）
+- `sync.batch_size` - 批量操作大小（默认：1000）
+- `sync.retry_attempts` - 重试次数（默认：3）
+- `sync.retry_delay` - 重试延迟时间（默认：30s）
+- `sync.job_timeout` - 任务超时时间（默认：1h）
+- `sync.cleanup_age` - 历史记录清理时间（默认：30d）
+
 ## 开发
 
 ### 运行测试
 ```bash
+# 运行所有测试
 go test ./...
+
+# 运行单元测试（跳过集成测试）
+go test ./... -short
+
+# 运行集成测试
+go test ./internal/integration_test.go -v
+
+# 运行特定包的测试
+go test ./internal/sync/... -v
+```
+
+### 验证系统集成
+```bash
+# 运行集成验证脚本
+./scripts/verify-integration.sh
+```
+
+### 前端开发
+```bash
+# 进入前端目录
+cd frontend
+
+# 安装依赖
+npm install
+
+# 启动开发服务器
+npm run dev
+
+# 构建生产版本
+npm run build
 ```
 
 ### Docker 部署
@@ -289,8 +415,8 @@ chmod +x scripts/start-production.sh
 
 - **后端**: Go 1.21+, Gin Web Framework
 - **数据库**: MySQL 5.7+
-- **前端**: HTML5, CSS3, JavaScript (Vanilla)
-- **依赖管理**: Go Modules
+- **前端**: Vue 3, Vite, Vue Router, Pinia
+- **依赖管理**: Go Modules, npm
 
 ## 依赖项
 
@@ -304,14 +430,37 @@ chmod +x scripts/start-production.sh
 
 基于规范文档中的实施计划，当前实现包括：
 
+### 核心功能
 - ✅ 项目初始化和基础架构设置
 - ✅ 数据库连接池管理器
 - ✅ 数据库元数据探索器（Schema Explorer）
-- ✅ Web 界面和用户体验
+- ✅ Web 界面和用户体验（Vue 3 + Vite）
 - ✅ REST API 接口实现
-- ⏳ 会话管理系统（待实现）
-- ⏳ SQL 查询引擎（待实现）
-- ⏳ 数据导出功能（待实现）
+
+### 同步系统
+- ✅ 连接管理器（Connection Manager）
+- ✅ 同步管理器（Sync Manager）
+- ✅ 映射管理器（Mapping Manager）
+- ✅ 任务引擎（Job Engine）
+- ✅ 同步引擎（Sync Engine）
+- ✅ 批量处理和性能优化
+- ✅ 错误处理和恢复机制
+- ✅ 配置导入导出
+- ✅ 实时监控和统计
+
+### 系统集成
+- ✅ 所有组件依赖注入
+- ✅ 系统启动和关闭逻辑
+- ✅ 数据库迁移系统
+- ✅ 健康检查和监控
+- ✅ 集成测试
+
+### 待实现功能
+- ⏳ 会话管理系统
+- ⏳ SQL 查询引擎
+- ⏳ 数据导出功能
+
+详细的系统集成文档请参考：[SYSTEM_INTEGRATION.md](docs/SYSTEM_INTEGRATION.md)
 
 ## 许可证
 
@@ -327,3 +476,5 @@ MIT License
 1. 确保 MySQL 服务正在运行
 2. 检查配置文件中的数据库连接信息
 3. 查看应用程序日志获取详细错误信息
+4. 运行集成验证脚本：`./scripts/verify-integration.sh`
+5. 查看系统集成文档：[SYSTEM_INTEGRATION.md](docs/SYSTEM_INTEGRATION.md)
