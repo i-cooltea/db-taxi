@@ -3,6 +3,7 @@ db-taxi
 configs/config.yaml.*
 configs/*.yaml
 frontend/node_modules
+.env
 
 # ===================== 编辑器缓存【必加】=====================
 .idea/

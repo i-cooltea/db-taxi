@@ -1,21 +1,32 @@
-.PHONY: help build run test migrate migrate-status migrate-version clean
+.PHONY: help build run test migrate migrate-status migrate-version clean diagnose-jobs fix-jobs test-job-engine diagnose-engine
 
 # Default target
 help:
 	@echo "DB-Taxi Makefile"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  build            Build the application"
-	@echo "  run              Run the application"
-	@echo "  test             Run tests"
-	@echo "  migrate          Run database migrations"
-	@echo "  migrate-status   Show migration status"
-	@echo "  migrate-version  Show current migration version"
-	@echo "  clean            Clean build artifacts"
+	@echo "  build              Build the application"
+	@echo "  run                Run the application"
+	@echo "  test               Run tests"
+	@echo "  test-job-engine    Test job engine startup"
+	@echo "  diagnose-engine    Diagnose job engine issues"
+	@echo "  check-engine       Check job engine status (requires running server)"
+	@echo "  migrate            Run database migrations"
+	@echo "  migrate-status     Show migration status"
+	@echo "  migrate-version    Show current migration version"
+	@echo "  diagnose-jobs      Diagnose stuck sync jobs"
+	@echo "  fix-jobs           Fix stuck sync jobs"
+	@echo "  clean              Clean build artifacts"
 	@echo ""
 	@echo "Migration examples:"
 	@echo "  make migrate HOST=localhost USER=root PASSWORD=secret DB=mydb"
 	@echo "  make migrate-status CONFIG=config.yaml"
+	@echo ""
+	@echo "Job troubleshooting examples:"
+	@echo "  make diagnose-jobs CONFIG=configs/config.yaml"
+	@echo "  make fix-jobs CONFIG=configs/config.yaml TIMEOUT=30"
+	@echo "  make test-job-engine CONFIG=configs/config.yaml"
+	@echo "  make diagnose-engine"
 
 # Build the application
 build:
@@ -81,3 +92,42 @@ clean:
 	rm -f db-taxi
 	rm -rf dist/
 	@echo "Clean complete"
+
+# Diagnose stuck sync jobs
+diagnose-jobs:
+	@echo "Diagnosing stuck sync jobs..."
+	@if [ -n "$(CONFIG)" ]; then \
+		go run cmd/fix-jobs/main.go -config $(CONFIG) -dry-run; \
+	else \
+		go run cmd/fix-jobs/main.go -config configs/config.yaml -dry-run; \
+	fi
+
+# Fix stuck sync jobs
+fix-jobs:
+	@echo "Fixing stuck sync jobs..."
+	@if [ -n "$(CONFIG)" ]; then \
+		go run cmd/fix-jobs/main.go -config $(CONFIG) $(if $(TIMEOUT),-timeout $(TIMEOUT),); \
+	else \
+		go run cmd/fix-jobs/main.go -config configs/config.yaml $(if $(TIMEOUT),-timeout $(TIMEOUT),); \
+	fi
+
+# Test job engine startup
+test-job-engine:
+	@echo "Testing job engine startup..."
+	@if [ -n "$(CONFIG)" ]; then \
+		go run cmd/test-job-engine/main.go -config $(CONFIG); \
+	else \
+		go run cmd/test-job-engine/main.go; \
+	fi
+
+# Diagnose job engine issues
+diagnose-engine:
+	@echo "Diagnosing job engine..."
+	@chmod +x scripts/diagnose-job-engine.sh
+	@./scripts/diagnose-job-engine.sh
+
+# Check job engine status (requires running server)
+check-engine:
+	@echo "Checking job engine status..."
+	@chmod +x scripts/check-job-engine-status.sh
+	@./scripts/check-job-engine-status.sh

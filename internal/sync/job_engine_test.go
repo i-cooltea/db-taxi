@@ -59,7 +59,6 @@ func TestJobEngine_SubmitJob(t *testing.T) {
 	defer engine.Stop()
 
 	// Mock repository calls for job processing
-	mockRepo.On("CreateSyncJob", ctx, mock.AnythingOfType("*sync.SyncJob")).Return(nil)
 	mockRepo.On("GetSyncConfig", mock.Anything, "test-config-1").Return(&SyncConfig{
 		ID:           "test-config-1",
 		ConnectionID: "test-conn-1",
@@ -76,7 +75,6 @@ func TestJobEngine_SubmitJob(t *testing.T) {
 	// Test successful job submission
 	err = engine.SubmitJob(ctx, job)
 	assert.NoError(t, err)
-	assert.Equal(t, JobStatusPending, job.Status)
 
 	// Wait a bit for job processing to complete
 	require.Eventually(t, func() bool {

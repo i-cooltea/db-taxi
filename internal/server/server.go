@@ -425,23 +425,31 @@ func (s *Server) getTableData(c *gin.Context) {
 
 // initSyncSystem initializes the sync system
 func (s *Server) initSyncSystem() error {
+	s.logger.Info("Initializing sync system...")
+
 	if s.dbPool == nil {
+		s.logger.Error("Database connection required for sync system")
 		return fmt.Errorf("database connection required for sync system")
 	}
 
+	s.logger.Info("Creating sync manager...")
 	// Create sync manager
 	syncManager, err := sync.NewManager(s.config, s.dbPool.GetDB(), s.logger)
 	if err != nil {
+		s.logger.WithError(err).Error("Failed to create sync manager")
 		return fmt.Errorf("failed to create sync manager: %w", err)
 	}
 
+	s.logger.Info("Initializing sync manager...")
 	// Initialize sync system
 	ctx := context.Background()
 	if err := syncManager.Initialize(ctx); err != nil {
+		s.logger.WithError(err).Error("Failed to initialize sync system")
 		return fmt.Errorf("failed to initialize sync system: %w", err)
 	}
 
 	s.syncManager = syncManager
+	s.logger.Info("Sync system initialized successfully")
 	return nil
 }
 

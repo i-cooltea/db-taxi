@@ -701,13 +701,14 @@ type SyncManagerService struct {
 }
 
 // NewSyncManager creates a new sync manager service
-func NewSyncManager(repo Repository, logger *logrus.Logger, localDB *sqlx.DB) SyncManager {
+func NewSyncManager(repo Repository, logger *logrus.Logger, localDB *sqlx.DB, jobEngine JobEngine) SyncManager {
 	service := NewService(repo, logger, localDB)
 	monitoring := NewMonitoringService(repo, logger)
 
 	return &SyncManagerService{
 		Service:    service,
 		monitoring: monitoring,
+		jobEngine:  jobEngine,
 	}
 }
 

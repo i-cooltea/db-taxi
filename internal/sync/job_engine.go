@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -87,12 +86,17 @@ func (je *JobEngineService) Start() error {
 	je.mutex.Lock()
 	defer je.mutex.Unlock()
 
+	je.logger.Info("Job engine Start() method called")
+
 	if je.running {
+		je.logger.Warn("Job engine is already running")
 		return fmt.Errorf("job engine is already running")
 	}
 
 	je.running = true
 	je.stopChan = make(chan struct{})
+
+	je.logger.WithField("worker_count", je.workerCount).Info("Creating workers...")
 
 	// Create and start workers
 	je.workers = make([]*JobWorker, je.workerCount)
@@ -108,14 +112,72 @@ func (je *JobEngineService) Start() error {
 
 		je.wg.Add(1)
 		go worker.run()
+		je.logger.WithField("worker_id", i).Debug("Worker started")
 	}
 
 	// Start job dispatcher
 	je.wg.Add(1)
 	go je.dispatcher()
+	je.logger.Info("Job dispatcher started")
 
 	je.logger.WithField("worker_count", je.workerCount).Info("Job engine started successfully")
+
+	// Resume pending jobs
+	go je.resumePendingJobs()
+
 	return nil
+}
+
+// resumePendingJobs resumes any pending jobs that were not processed
+func (je *JobEngineService) resumePendingJobs() {
+	ctx := context.Background()
+
+	je.logger.Info("Checking for pending jobs to resume...")
+
+	// Get all pending jobs
+	pendingJobs, err := je.repo.GetJobsByStatus(ctx, JobStatusPending)
+	if err != nil {
+		je.logger.WithError(err).Error("Failed to get pending jobs")
+		return
+	}
+
+	if len(pendingJobs) == 0 {
+		je.logger.Info("No pending jobs to resume")
+		return
+	}
+
+	je.logger.WithField("count", len(pendingJobs)).Info("Found pending jobs, resuming...")
+
+	// Submit each pending job to the queue
+	for _, job := range pendingJobs {
+		// Check if job is too old (created more than 24 hours ago)
+		if time.Since(job.CreatedAt) > 24*time.Hour {
+			je.logger.WithFields(logrus.Fields{
+				"job_id":     job.ID,
+				"created_at": job.CreatedAt,
+			}).Warn("Skipping old pending job")
+
+			// Mark as failed
+			job.Status = JobStatusFailed
+			job.Error = "Job expired (pending for more than 24 hours)"
+			now := time.Now()
+			job.EndTime = &now
+
+			if err := je.repo.UpdateSyncJob(ctx, job.ID, job); err != nil {
+				je.logger.WithError(err).WithField("job_id", job.ID).Error("Failed to update expired job")
+			}
+			continue
+		}
+
+		// Submit job to queue
+		if err := je.SubmitJob(ctx, job); err != nil {
+			je.logger.WithError(err).WithField("job_id", job.ID).Error("Failed to resume pending job")
+		} else {
+			je.logger.WithField("job_id", job.ID).Info("Pending job resumed successfully")
+		}
+	}
+
+	je.logger.WithField("count", len(pendingJobs)).Info("Finished resuming pending jobs")
 }
 
 // Stop gracefully shuts down the job engine
@@ -159,20 +221,11 @@ func (je *JobEngineService) SubmitJob(ctx context.Context, job *SyncJob) error {
 
 	// Validate job
 	if job.ID == "" {
-		job.ID = uuid.New().String()
+		return fmt.Errorf("job ID is required")
 	}
 
-	if job.Status == "" {
-		job.Status = JobStatusPending
-	}
-
-	// Update job status to pending
-	job.Status = JobStatusPending
-	job.StartTime = time.Now()
-
-	// Save job to repository
-	if err := je.repo.CreateSyncJob(ctx, job); err != nil {
-		return fmt.Errorf("failed to create sync job: %w", err)
+	if job.ConfigID == "" {
+		return fmt.Errorf("config ID is required")
 	}
 
 	// Add to job queue

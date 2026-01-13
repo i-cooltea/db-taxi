@@ -44,7 +44,7 @@ func NewManager(cfg *config.Config, db *sqlx.DB, logger *logrus.Logger) (*Manage
 
 	// Create services
 	connectionManager := NewConnectionManager(repo, logger, db)
-	syncManager := NewSyncManager(repo, logger, db)
+	syncManager := NewSyncManager(repo, logger, db, jobEngine)
 	mappingManager := NewMappingManager(db, repo, logger)
 
 	// Set job engine reference in sync manager
@@ -78,12 +78,17 @@ func (m *Manager) Initialize(ctx context.Context) error {
 	}
 
 	// Start job engine
-	if m.jobEngine != nil {
-		if err := m.jobEngine.Start(); err != nil {
-			return fmt.Errorf("failed to start job engine: %w", err)
-		}
-		m.logger.Info("Job engine started successfully")
+	if m.jobEngine == nil {
+		m.logger.Error("Job engine is nil, cannot start")
+		return fmt.Errorf("job engine is not initialized")
 	}
+
+	m.logger.Info("Starting job engine...")
+	if err := m.jobEngine.Start(); err != nil {
+		m.logger.WithError(err).Error("Failed to start job engine")
+		return fmt.Errorf("failed to start job engine: %w", err)
+	}
+	m.logger.Info("Job engine started successfully")
 
 	m.logger.Info("Sync system initialized successfully")
 	return nil

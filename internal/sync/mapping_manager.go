@@ -219,7 +219,7 @@ func (m *MappingManagerImpl) ImportConfig(ctx context.Context, config *ConfigExp
 
 		// Use transaction directly for connection creation
 		query := `
-			INSERT INTO connections (id, name, host, port, username, password, database_name, local_db_name, ssl)
+			INSERT INTO connections (id, name, host, port, username, password, database_name, local_db_name, ` + "`ssl`" + `)
 			VALUES (:id, :name, :host, :port, :username, :password, :database, :local_db_name, :ssl)
 		`
 		_, err = tx.NamedExecContext(ctx, query, conn)

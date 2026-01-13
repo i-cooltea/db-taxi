@@ -27,11 +27,24 @@ func NewMySQLRepository(db *sqlx.DB, logger *logrus.Logger) Repository {
 // Connection operations
 
 func (r *MySQLRepository) CreateConnection(ctx context.Context, config *ConnectionConfig) error {
+	// Use a map to ensure proper field mapping for named parameters
+	params := map[string]interface{}{
+		"id":            config.ID,
+		"name":          config.Name,
+		"host":          config.Host,
+		"port":          config.Port,
+		"username":      config.Username,
+		"password":      config.Password,
+		"database_name": config.Database,
+		"local_db_name": config.LocalDBName,
+		"ssl":           config.SSL,
+	}
+
 	query := `
-		INSERT INTO connections (id, name, host, port, username, password, database_name, local_db_name, ssl)
-		VALUES (:id, :name, :host, :port, :username, :password, :database, :local_db_name, :ssl)
+		INSERT INTO connections (id, name, host, port, username, password, database_name, local_db_name, ` + "`ssl`" + `)
+		VALUES (:id, :name, :host, :port, :username, :password, :database_name, :local_db_name, :ssl)
 	`
-	_, err := r.db.NamedExecContext(ctx, query, config)
+	_, err := r.db.NamedExecContext(ctx, query, params)
 	if err != nil {
 		r.logger.WithError(err).Error("Failed to create connection")
 		return fmt.Errorf("failed to create connection: %w", err)
@@ -65,15 +78,28 @@ func (r *MySQLRepository) GetConnections(ctx context.Context) ([]*ConnectionConf
 }
 
 func (r *MySQLRepository) UpdateConnection(ctx context.Context, id string, config *ConnectionConfig) error {
+	// Use a map to ensure proper field mapping for named parameters
+	params := map[string]interface{}{
+		"id":            id,
+		"name":          config.Name,
+		"host":          config.Host,
+		"port":          config.Port,
+		"username":      config.Username,
+		"password":      config.Password,
+		"database_name": config.Database,
+		"local_db_name": config.LocalDBName,
+		"ssl":           config.SSL,
+	}
+
 	query := `
 		UPDATE connections 
 		SET name = :name, host = :host, port = :port, username = :username, 
-		    password = :password, database_name = :database, local_db_name = :local_db_name, 
-		    ssl = :ssl, updated_at = CURRENT_TIMESTAMP
+		    password = :password, database_name = :database_name, local_db_name = :local_db_name, 
+		    ` + "`ssl`" + ` = :ssl, updated_at = CURRENT_TIMESTAMP
 		WHERE id = :id
 	`
-	config.ID = id
-	result, err := r.db.NamedExecContext(ctx, query, config)
+
+	result, err := r.db.NamedExecContext(ctx, query, params)
 	if err != nil {
 		r.logger.WithError(err).WithField("id", id).Error("Failed to update connection")
 		return fmt.Errorf("failed to update connection: %w", err)
@@ -390,7 +416,7 @@ func (r *MySQLRepository) UpdateSyncJob(ctx context.Context, id string, job *Syn
 		UPDATE sync_jobs 
 		SET status = :status, end_time = :end_time, total_tables = :total_tables, 
 		    completed_tables = :completed_tables, total_rows = :total_rows, 
-		    processed_rows = :processed_rows, error_message = :error
+		    processed_rows = :processed_rows, error_message = :error_message
 		WHERE id = :id
 	`
 	job.ID = id

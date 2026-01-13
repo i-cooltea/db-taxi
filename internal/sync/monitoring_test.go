@@ -5,6 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/gen"
+	"github.com/leanovate/gopter/prop"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -306,4 +309,181 @@ func TestMonitoringService_AddJobWarning(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, activeJobs, 1)
 	assert.Contains(t, activeJobs[0].Warnings, warning)
+}
+
+// **Feature: database-sync, Property 10: Status update timeliness**
+// **Validates: Requirements 4.5, 5.1**
+// Property 10: For any sync job, job status and progress information should be updated promptly when state changes
+func TestStatusUpdateTimeliness_Property(t *testing.T) {
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 100
+	properties := gopter.NewProperties(parameters)
+
+	properties.Property("For any sync job, status and progress updates should be reflected immediately", prop.ForAll(
+		func(jobID string, totalTables int, updates []progressUpdate) bool {
+			// Skip invalid inputs
+			if jobID == "" || totalTables <= 0 || totalTables > 100 {
+				return true
+			}
+			if len(updates) == 0 {
+				return true
+			}
+
+			mockRepo := &MockRepository{}
+			logger := logrus.New()
+			logger.SetLevel(logrus.FatalLevel) // Suppress all logs in property tests
+
+			monitoring := NewMonitoringService(mockRepo, logger)
+			ctx := context.Background()
+
+			// Start monitoring
+			err := monitoring.StartJobMonitoring(ctx, jobID, totalTables)
+			if err != nil {
+				return false
+			}
+
+			// Record time before update
+			beforeUpdate := time.Now()
+
+			// Apply each update and verify timeliness
+			for _, update := range updates {
+				// Ensure update values are valid
+				if update.completedTables < 0 || update.completedTables > totalTables {
+					continue
+				}
+				if update.processedRows < 0 || update.totalRows < 0 {
+					continue
+				}
+
+				// Mock repository calls for updating job
+				mockJob := &SyncJob{
+					ID:              jobID,
+					Status:          JobStatusRunning,
+					TotalTables:     totalTables,
+					CompletedTables: update.completedTables,
+					TotalRows:       update.totalRows,
+					ProcessedRows:   update.processedRows,
+				}
+
+				mockRepo.On("GetSyncJob", ctx, jobID).Return(mockJob, nil).Once()
+				mockRepo.On("UpdateSyncJob", ctx, jobID, mock.AnythingOfType("*sync.SyncJob")).Return(nil).Once()
+
+				// Update progress
+				progress := &Progress{
+					TotalTables:     totalTables,
+					CompletedTables: update.completedTables,
+					TotalRows:       update.totalRows,
+					ProcessedRows:   update.processedRows,
+					Percentage:      float64(update.processedRows) / float64(update.totalRows) * 100,
+				}
+
+				err := monitoring.UpdateJobProgress(ctx, jobID, progress)
+				if err != nil {
+					return false
+				}
+
+				// Verify update is reflected immediately (within reasonable time)
+				afterUpdate := time.Now()
+				updateLatency := afterUpdate.Sub(beforeUpdate)
+
+				// Get active jobs to verify update
+				activeJobs, err := monitoring.GetActiveJobs(ctx)
+				if err != nil {
+					return false
+				}
+
+				// Find our job
+				var found bool
+				for _, job := range activeJobs {
+					if job.JobID == jobID {
+						found = true
+						// Verify the update was applied
+						if job.CompletedTables != update.completedTables {
+							return false
+						}
+						if job.ProcessedRows != update.processedRows {
+							return false
+						}
+						if job.TotalRows != update.totalRows {
+							return false
+						}
+						break
+					}
+				}
+
+				if !found {
+					return false
+				}
+
+				// Verify timeliness: update should be reflected within 100ms
+				// This is a reasonable threshold for "immediate" updates
+				if updateLatency > 100*time.Millisecond {
+					return false
+				}
+
+				beforeUpdate = time.Now()
+			}
+
+			return true
+		},
+		genJobID(),
+		genTotalTables(),
+		genProgressUpdates(),
+	))
+
+	properties.TestingRun(t, gopter.ConsoleReporter(false))
+}
+
+// progressUpdate represents a progress update event
+type progressUpdate struct {
+	completedTables int
+	totalRows       int64
+	processedRows   int64
+}
+
+// genJobID generates valid job IDs
+func genJobID() gopter.Gen {
+	return gen.Identifier()
+}
+
+// genTotalTables generates valid total table counts
+func genTotalTables() gopter.Gen {
+	return gen.IntRange(1, 20)
+}
+
+// genProgressUpdates generates a sequence of progress updates
+func genProgressUpdates() gopter.Gen {
+	return gen.SliceOfN(5, genProgressUpdate()).SuchThat(func(updates []progressUpdate) bool {
+		// Ensure updates are monotonically increasing
+		for i := 1; i < len(updates); i++ {
+			if updates[i].processedRows < updates[i-1].processedRows {
+				return false
+			}
+		}
+		return true
+	})
+}
+
+// genProgressUpdate generates a single progress update
+func genProgressUpdate() gopter.Gen {
+	return gopter.CombineGens(
+		gen.IntRange(0, 20),       // completedTables
+		gen.Int64Range(100, 1000), // totalRows
+		gen.Int64Range(0, 1000),   // processedRows
+	).Map(func(values []interface{}) progressUpdate {
+		completedTables := values[0].(int)
+		totalRows := values[1].(int64)
+		processedRows := values[2].(int64)
+
+		// Ensure processedRows doesn't exceed totalRows
+		if processedRows > totalRows {
+			processedRows = totalRows
+		}
+
+		return progressUpdate{
+			completedTables: completedTables,
+			totalRows:       totalRows,
+			processedRows:   processedRows,
+		}
+	})
 }
