@@ -1,7 +1,7 @@
 # DB-Taxi 
 
 
-![image](static/logo.jpeg)
+![image](https://raw.githubusercontent.com/i-cooltea/resource/refs/heads/master/image/db-taxi-logo.png)
 
 一款非常方便且实用的MySQL数据克隆工具。
 
