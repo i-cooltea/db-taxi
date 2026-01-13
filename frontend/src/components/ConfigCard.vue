@@ -37,16 +37,16 @@
 
     <div class="config-actions">
       <button class="btn btn-success btn-small" @click="$emit('start', config)">
-        ▶️ 启动同步
+        <Play :size="14" /> 启动同步
       </button>
       <button class="btn btn-secondary btn-small" @click="$emit('view-tables', config)">
-        📋 查看表
+        <List :size="14" /> 查看表
       </button>
       <button class="btn btn-secondary btn-small" @click="$emit('edit', config)">
-        ✏️ 编辑
+        <Edit2 :size="14" /> 编辑
       </button>
       <button class="btn btn-danger btn-small" @click="$emit('delete', config)">
-        🗑️ 删除
+        <Trash2 :size="14" /> 删除
       </button>
     </div>
   </div>
@@ -54,6 +54,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { Play, List, Edit2, Trash2 } from 'lucide-vue-next'
 
 const props = defineProps({
   config: {
@@ -192,5 +193,11 @@ const tableCount = computed(() =>
   gap: 0.5rem;
   margin-top: 1rem;
   flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 </style>

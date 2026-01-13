@@ -1,39 +1,30 @@
 <template>
-  <div class="container">
-    <header class="page-header">
-      <div>
-        <h1>⚙️ 配置管理</h1>
-        <p>导入、导出和备份同步配置</p>
-      </div>
-      <nav class="nav-links">
-        <router-link to="/" class="nav-link">🏠 首页</router-link>
-        <router-link to="/connections" class="nav-link">🔌 连接管理</router-link>
-        <router-link to="/sync" class="nav-link">🔄 同步配置</router-link>
-      </nav>
-    </header>
+  <div>
 
     <div class="card">
       <div class="card-header">
-        <h2>📤 导出配置</h2>
+        <h2><Upload :size="20" class="inline-icon" /> 导出配置</h2>
       </div>
       <p class="card-description">
         导出当前所有的同步配置，包括连接信息、数据库映射和表映射配置。
       </p>
       <div class="action-buttons">
         <button class="btn btn-primary" @click="handleExport" :disabled="store.loading">
-          <span v-if="!store.loading">📥 导出配置</span>
-          <span v-else>⏳ 导出中...</span>
+          <Download :size="18" v-if="!store.loading" /> 
+          <Loader2 :size="18" class="spin" v-else />
+          <span>{{ store.loading ? '导出中...' : '导出配置' }}</span>
         </button>
         <button class="btn btn-secondary" @click="handleBackup" :disabled="store.loading">
-          <span v-if="!store.loading">💾 创建备份</span>
-          <span v-else>⏳ 备份中...</span>
+          <Save :size="18" v-if="!store.loading" />
+          <Loader2 :size="18" class="spin" v-else />
+          <span>{{ store.loading ? '备份中...' : '创建备份' }}</span>
         </button>
       </div>
     </div>
 
     <div class="card">
       <div class="card-header">
-        <h2>📥 导入配置</h2>
+        <h2><Download :size="20" class="inline-icon" /> 导入配置</h2>
       </div>
       <p class="card-description">
         从配置文件导入同步配置。系统会自动验证配置文件的有效性。
@@ -42,7 +33,7 @@
       <div class="import-section">
         <div class="file-upload">
           <label for="config-file" class="file-label">
-            <span class="file-icon">📁</span>
+            <Folder :size="24" class="file-icon" />
             <span v-if="!selectedFile">选择配置文件 (JSON)</span>
             <span v-else class="file-name">{{ selectedFile.name }}</span>
           </label>
@@ -57,14 +48,18 @@
 
         <div v-if="selectedFile" class="file-actions">
           <button class="btn btn-secondary" @click="handleValidate" :disabled="store.loading || validating">
-            <span v-if="!validating">✓ 验证配置</span>
-            <span v-else>⏳ 验证中...</span>
+            <CheckCircle :size="16" v-if="!validating" />
+            <Loader2 :size="16" class="spin" v-else />
+            <span>{{ validating ? '验证中...' : '验证配置' }}</span>
           </button>
-          <button class="btn" @click="clearFile">✕ 清除</button>
+          <button class="btn" @click="clearFile">
+            <X :size="16" /> 清除
+          </button>
         </div>
 
         <div v-if="validationResult" class="validation-result" :class="validationResult.valid ? 'success' : 'error'">
-          <div class="result-icon">{{ validationResult.valid ? '✓' : '✗' }}</div>
+          <CheckCircle v-if="validationResult.valid" class="result-icon" :size="32" />
+          <XCircle v-else class="result-icon" :size="32" />
           <div class="result-message">
             <strong>{{ validationResult.valid ? '配置有效' : '配置无效' }}</strong>
             <p v-if="validationResult.error">{{ validationResult.error }}</p>
@@ -84,8 +79,9 @@
 
         <div v-if="validationResult && validationResult.valid" class="action-buttons">
           <button class="btn btn-primary" @click="handleImport" :disabled="store.loading">
-            <span v-if="!store.loading">📥 导入配置</span>
-            <span v-else>⏳ 导入中...</span>
+            <Download :size="18" v-if="!store.loading" />
+            <Loader2 :size="18" class="spin" v-else />
+            <span>{{ store.loading ? '导入中...' : '导入配置' }}</span>
           </button>
         </div>
       </div>
@@ -122,6 +118,10 @@
 
 <script setup>
 import { ref } from 'vue'
+import { 
+  Upload, Download, Save, Folder, CheckCircle, 
+  XCircle, X, Loader2 
+} from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
 
 const store = useSyncStore()
@@ -256,44 +256,6 @@ function downloadConfig() {
 </script>
 
 <style scoped>
-.page-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 2rem;
-  border-radius: 10px;
-  margin-bottom: 2rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.page-header h1 {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-}
-
-.page-header p {
-  font-size: 1rem;
-  opacity: 0.9;
-}
-
-.nav-links {
-  display: flex;
-  gap: 1rem;
-}
-
-.nav-link {
-  color: white;
-  text-decoration: none;
-  padding: 0.5rem 1rem;
-  border-radius: 5px;
-  transition: background 0.2s;
-}
-
-.nav-link:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
 .card {
   background: white;
   border-radius: 10px;
@@ -381,7 +343,8 @@ function downloadConfig() {
 }
 
 .file-icon {
-  font-size: 1.5rem;
+  color: #667eea;
+  flex-shrink: 0;
 }
 
 .file-name {
@@ -391,6 +354,21 @@ function downloadConfig() {
 
 .file-input {
   display: none;
+}
+
+.inline-icon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.25rem;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .file-actions {
@@ -419,8 +397,7 @@ function downloadConfig() {
 }
 
 .result-icon {
-  font-size: 2rem;
-  line-height: 1;
+  flex-shrink: 0;
 }
 
 .validation-result.success .result-icon {

@@ -38,13 +38,13 @@
 
     <div class="connection-actions">
       <button class="btn btn-success btn-small" @click="$emit('test', connection)" :disabled="testing">
-        {{ testing ? '测试中...' : '🔍 测试连接' }}
+        <Search :size="14" /> {{ testing ? '测试中...' : '测试连接' }}
       </button>
       <button class="btn btn-secondary btn-small" @click="$emit('edit', connection)">
-        ✏️ 编辑
+        <Edit2 :size="14" /> 编辑
       </button>
       <button class="btn btn-danger btn-small" @click="$emit('delete', connection)">
-        🗑️ 删除
+        <Trash2 :size="14" /> 删除
       </button>
     </div>
   </div>
@@ -52,6 +52,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import { Search, Edit2, Trash2 } from 'lucide-vue-next'
 
 const props = defineProps({
   connection: {
@@ -198,5 +199,11 @@ function formatDate(dateString) {
   gap: 0.5rem;
   margin-top: 1rem;
   flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 </style>

@@ -1,42 +1,31 @@
 <template>
-  <div class="container">
-    <header class="page-header">
-      <div>
-        <h1>📊 同步监控</h1>
-        <p>监控同步任务状态和进度</p>
-      </div>
-      <nav class="nav-links">
-        <router-link to="/" class="nav-link">🏠 首页</router-link>
-        <router-link to="/sync" class="nav-link">🔄 同步配置</router-link>
-        <router-link to="/config" class="nav-link">⚙️ 配置管理</router-link>
-      </nav>
-    </header>
+  <div>
 
     <!-- Statistics Overview -->
     <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-icon">📊</div>
+        <BarChart3 class="stat-icon" :size="32" />
         <div class="stat-content">
           <div class="stat-value">{{ stats.total_jobs || 0 }}</div>
           <div class="stat-label">总任务数</div>
         </div>
       </div>
       <div class="stat-card success">
-        <div class="stat-icon">✅</div>
+        <CheckCircle class="stat-icon" :size="32" />
         <div class="stat-content">
           <div class="stat-value">{{ stats.completed_jobs || 0 }}</div>
           <div class="stat-label">已完成</div>
         </div>
       </div>
       <div class="stat-card running">
-        <div class="stat-icon">🔄</div>
+        <Loader class="stat-icon" :size="32" />
         <div class="stat-content">
           <div class="stat-value">{{ stats.running_jobs || 0 }}</div>
           <div class="stat-label">运行中</div>
         </div>
       </div>
       <div class="stat-card error">
-        <div class="stat-icon">❌</div>
+        <XCircle class="stat-icon" :size="32" />
         <div class="stat-content">
           <div class="stat-value">{{ stats.failed_jobs || 0 }}</div>
           <div class="stat-label">失败</div>
@@ -47,9 +36,9 @@
     <!-- Active Jobs Section -->
     <div class="card" v-if="activeJobs.length > 0">
       <div class="card-header">
-        <h2>🔄 运行中的任务</h2>
+        <h2><Activity :size="20" class="inline-icon" /> 运行中的任务</h2>
         <button @click="refreshActiveJobs" class="btn btn-secondary" :disabled="loading">
-          {{ loading ? '刷新中...' : '🔄 刷新' }}
+          <RefreshCw :size="16" :class="{ 'spin': loading }" /> {{ loading ? '刷新中...' : '刷新' }}
         </button>
       </div>
       <div class="active-jobs">
@@ -63,10 +52,10 @@
               <span class="status-badge running">运行中</span>
               <div class="job-actions">
                 <button @click="stopJob(job.job_id)" class="btn btn-sm btn-warning" :disabled="loading">
-                  ⏸️ 停止
+                  <Pause :size="14" /> 停止
                 </button>
                 <button @click="cancelJob(job.job_id)" class="btn btn-sm btn-danger" :disabled="loading">
-                  ❌ 取消
+                  <X :size="14" /> 取消
                 </button>
                 <button @click="viewJobDetails(job.job_id)" class="btn btn-sm">查看详情</button>
               </div>
@@ -86,11 +75,11 @@
           <div class="job-stats">
             <div class="stat-item">
               <span class="stat-label">已处理行数:</span>
-              <span class="stat-value">{{ formatNumber(job.processed_rows) }} / {{ formatNumber(job.total_rows) }}</span>
+              <span class="stat-value time-value">{{ formatNumber(job.processed_rows) }} / {{ formatNumber(job.total_rows) }}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">开始时间:</span>
-              <span class="stat-value">{{ formatTime(job.start_time) }}</span>
+              <span class="stat-value time-value">{{ formatTime(job.start_time) }}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">错误数:</span>
@@ -120,13 +109,13 @@
     <!-- Job History Section -->
     <div class="card">
       <div class="card-header">
-        <h2>📜 同步历史</h2>
+        <h2><History :size="20" class="inline-icon" /> 同步历史</h2>
         <div class="header-actions">
           <button @click="showStartSyncModal = true" class="btn btn-primary" :disabled="loading">
-            ▶️ 启动同步
+            <Play :size="16" /> 启动同步
           </button>
           <button @click="refreshHistory" class="btn btn-secondary" :disabled="loading">
-            {{ loading ? '刷新中...' : '🔄 刷新' }}
+            <RefreshCw :size="16" :class="{ 'spin': loading }" /> {{ loading ? '刷新中...' : '刷新' }}
           </button>
         </div>
       </div>
@@ -152,23 +141,23 @@
           <div class="job-stats">
             <div class="stat-item">
               <span class="stat-label">表数量:</span>
-              <span class="stat-value">{{ job.completed_tables }} / {{ job.total_tables }}</span>
+              <span class="stat-value time-value">{{ job.completed_tables }} / {{ job.total_tables }}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">处理行数:</span>
-              <span class="stat-value">{{ formatNumber(job.processed_rows) }} / {{ formatNumber(job.total_rows) }}</span>
+              <span class="stat-value time-value">{{ formatNumber(job.processed_rows) }} / {{ formatNumber(job.total_rows) }}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">开始时间:</span>
-              <span class="stat-value">{{ formatTime(job.start_time) }}</span>
+              <span class="stat-value time-value">{{ formatTime(job.start_time) }}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">结束时间:</span>
-              <span class="stat-value">{{ job.end_time ? formatTime(job.end_time) : '-' }}</span>
+              <span class="stat-value time-value">{{ job.end_time ? formatTime(job.end_time) : '-' }}</span>
             </div>
             <div class="stat-item" v-if="job.end_time">
               <span class="stat-label">耗时:</span>
-              <span class="stat-value">{{ calculateDuration(job.start_time, job.end_time) }}</span>
+              <span class="stat-value time-value">{{ calculateDuration(job.start_time, job.end_time) }}</span>
             </div>
           </div>
 
@@ -202,7 +191,7 @@
     <div v-if="showLogsModal" class="modal-overlay" @click="closeLogsModal">
       <div class="modal-content logs-modal" @click.stop>
         <div class="modal-header">
-          <h2>📋 任务日志</h2>
+          <h2><FileText :size="20" class="inline-icon" /> 任务日志</h2>
           <button @click="closeLogsModal" class="close-btn">×</button>
         </div>
         <div class="modal-body">
@@ -230,7 +219,7 @@
     <div v-if="showStartSyncModal" class="modal-overlay" @click="closeStartSyncModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <h2>▶️ 启动同步任务</h2>
+          <h2><Play :size="20" class="inline-icon" /> 启动同步任务</h2>
           <button @click="closeStartSyncModal" class="close-btn">×</button>
         </div>
         <div class="modal-body">
@@ -272,6 +261,10 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { 
+  BarChart3, CheckCircle, XCircle, Loader, Activity, 
+  RefreshCw, History, Play, Pause, X, FileText 
+} from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
 
 const syncStore = useSyncStore()
@@ -293,6 +286,7 @@ const refreshInterval = ref(null)
 
 // Load initial data
 onMounted(async () => {
+  console.log('Monitoring component mounted')
   await loadAllData()
   // Auto-refresh every 5 seconds
   refreshInterval.value = setInterval(async () => {
@@ -301,12 +295,14 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  console.log('Monitoring component unmounted')
   if (refreshInterval.value) {
     clearInterval(refreshInterval.value)
   }
 })
 
 async function loadAllData() {
+  console.log('Loading all monitoring data...')
   loading.value = true
   try {
     await Promise.all([
@@ -315,6 +311,7 @@ async function loadAllData() {
       loadHistory(),
       loadAvailableConfigs()
     ])
+    console.log('All data loaded successfully')
   } catch (error) {
     console.error('Failed to load monitoring data:', error)
   } finally {
@@ -349,10 +346,16 @@ async function loadActiveJobs() {
 async function loadHistory() {
   try {
     const offset = (currentPage.value - 1) * pageSize.value
-    const response = await fetch(`/api/sync/jobs/history?limit=${pageSize.value}&offset=${offset}`)
+    const url = `/api/sync/jobs/history?limit=${pageSize.value}&offset=${offset}`
+    console.log('Loading history from:', url)
+    const response = await fetch(url)
     const result = await response.json()
+    console.log('History response:', result)
     if (result.success) {
       jobHistory.value = result.data || []
+      console.log('Job history loaded:', jobHistory.value.length, 'items')
+    } else {
+      console.error('Failed to load history:', result.error)
     }
   } catch (error) {
     console.error('Failed to load job history:', error)
@@ -567,44 +570,6 @@ function nextPage() {
 </script>
 
 <style scoped>
-.page-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 2rem;
-  border-radius: 10px;
-  margin-bottom: 2rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.page-header h1 {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-}
-
-.page-header p {
-  font-size: 1rem;
-  opacity: 0.9;
-}
-
-.nav-links {
-  display: flex;
-  gap: 1rem;
-}
-
-.nav-link {
-  color: white;
-  text-decoration: none;
-  padding: 0.5rem 1rem;
-  border-radius: 5px;
-  transition: background 0.2s;
-}
-
-.nav-link:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
 /* Statistics Grid */
 .stats-grid {
   display: grid;
@@ -637,7 +602,35 @@ function nextPage() {
 }
 
 .stat-icon {
-  font-size: 2rem;
+  color: #667eea;
+  flex-shrink: 0;
+}
+
+.stat-card.success .stat-icon {
+  color: #10b981;
+}
+
+.stat-card.running .stat-icon {
+  color: #3b82f6;
+}
+
+.stat-card.error .stat-icon {
+  color: #ef4444;
+}
+
+.inline-icon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.25rem;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .stat-content {
@@ -807,6 +800,10 @@ function nextPage() {
 .stat-item .stat-value {
   font-weight: 500;
   color: #1f2937;
+}
+
+.stat-item .stat-value.time-value {
+  font-size: 18px;
 }
 
 .error-text {

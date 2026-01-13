@@ -1,22 +1,11 @@
 <template>
-  <div class="container">
-    <header class="page-header">
-      <div>
-        <h1>🔄 同步配置</h1>
-        <p>管理数据库同步配置和表映射</p>
-      </div>
-      <nav class="nav-links">
-        <router-link to="/" class="nav-link">🏠 首页</router-link>
-        <router-link to="/connections" class="nav-link">🔌 连接管理</router-link>
-        <router-link to="/config" class="nav-link">⚙️ 配置管理</router-link>
-      </nav>
-    </header>
+  <div>
 
     <div class="card">
       <div class="card-header">
-        <h2>📋 同步配置列表</h2>
+        <h2><List :size="20" class="inline-icon" /> 同步配置列表</h2>
         <button class="btn" @click="showCreateModal">
-          ➕ 创建同步配置
+          <Plus :size="18" /> 创建同步配置
         </button>
       </div>
 
@@ -29,7 +18,7 @@
       </div>
 
       <div v-else-if="store.configs.length === 0" class="empty-state">
-        <div class="empty-state-icon">📋</div>
+        <RefreshCw class="empty-icon" :size="64" />
         <h3>还没有配置任何同步任务</h3>
         <p>点击上方"创建同步配置"按钮开始配置数据库同步</p>
       </div>
@@ -61,6 +50,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { RefreshCw, List, Plus } from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
 import ConfigCard from '../components/ConfigCard.vue'
 import ConfigModal from '../components/ConfigModal.vue'
@@ -137,44 +127,6 @@ function viewTables(config) {
 </script>
 
 <style scoped>
-.page-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 2rem;
-  border-radius: 10px;
-  margin-bottom: 2rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.page-header h1 {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-}
-
-.page-header p {
-  font-size: 1rem;
-  opacity: 0.9;
-}
-
-.nav-links {
-  display: flex;
-  gap: 1rem;
-}
-
-.nav-link {
-  color: white;
-  text-decoration: none;
-  padding: 0.5rem 1rem;
-  border-radius: 5px;
-  transition: background 0.2s;
-}
-
-.nav-link:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -205,8 +157,15 @@ function viewTables(config) {
   color: #666;
 }
 
-.empty-state-icon {
-  font-size: 4rem;
+.empty-icon {
+  color: #667eea;
+  opacity: 0.5;
   margin-bottom: 1rem;
+}
+
+.inline-icon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.25rem;
 }
 </style>

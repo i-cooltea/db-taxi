@@ -1,8 +1,9 @@
-# DB-Taxi MySQL Web Explorer
+# DB-Taxi 
+
 
 ![image](static/logo.jpeg)
 
-DB-Taxi 是一个基于 Web 的 MySQL 数据库管理和浏览工具，提供直观的用户界面来探索数据库结构、查看表信息和数据。
+一款非常方便且实用的MySQL数据克隆工具。
 
 ## 功能特性
 
@@ -186,6 +187,7 @@ db-taxi [options]
 export DBT_DATABASE_HOST=remote-mysql
 ./db-taxi -user admin -password secret -database production_db
 ```
+
 
 ### 生产环境部署
 ```bash

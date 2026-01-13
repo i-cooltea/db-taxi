@@ -1,17 +1,5 @@
 <template>
-  <div class="container">
-    <header class="page-header">
-      <div>
-        <h1>🔌 连接管理</h1>
-        <p>管理远程数据库连接配置</p>
-      </div>
-      <nav class="nav-links">
-        <router-link to="/" class="nav-link">🏠 首页</router-link>
-        <router-link to="/sync" class="nav-link">🔄 同步配置</router-link>
-        <router-link to="/monitoring" class="nav-link">📊 监控</router-link>
-        <router-link to="/config" class="nav-link">⚙️ 配置管理</router-link>
-      </nav>
-    </header>
+  <div>
 
     <div v-if="error" class="alert alert-error">
       {{ error }}
@@ -25,9 +13,9 @@
 
     <div class="card">
       <div class="card-header">
-        <h2>📋 连接列表</h2>
+        <h2><List :size="20" class="inline-icon" /> 连接列表</h2>
         <button class="btn" @click="showAddModal = true">
-          ➕ 添加连接
+          <Plus :size="18" /> 添加连接
         </button>
       </div>
 
@@ -37,7 +25,7 @@
       </div>
 
       <div v-else-if="connections.length === 0" class="empty-state">
-        <div class="empty-icon">🔌</div>
+        <Plug class="empty-icon" :size="64" />
         <h3>还没有数据库连接</h3>
         <p>点击上方"添加连接"按钮创建第一个数据库连接</p>
       </div>
@@ -71,7 +59,7 @@
           <span class="close" @click="showDeleteModal = false">&times;</span>
         </div>
         <p>确定要删除连接 <strong>{{ deletingConnection?.config.name }}</strong> 吗？</p>
-        <p class="warning">⚠️ 此操作将同时删除与此连接相关的所有同步配置和任务。</p>
+        <p class="warning"><AlertTriangle :size="16" class="inline-icon" /> 此操作将同时删除与此连接相关的所有同步配置和任务。</p>
         <div class="form-actions">
           <button class="btn btn-secondary" @click="showDeleteModal = false">
             取消
@@ -87,6 +75,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { Plug, List, Plus, AlertTriangle } from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
 import ConnectionCard from '../components/ConnectionCard.vue'
 import ConnectionModal from '../components/ConnectionModal.vue'
@@ -188,44 +177,6 @@ function closeModal() {
 </script>
 
 <style scoped>
-.page-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 2rem;
-  border-radius: 10px;
-  margin-bottom: 2rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.page-header h1 {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-}
-
-.page-header p {
-  font-size: 1rem;
-  opacity: 0.9;
-}
-
-.nav-links {
-  display: flex;
-  gap: 1rem;
-}
-
-.nav-link {
-  color: white;
-  text-decoration: none;
-  padding: 0.5rem 1rem;
-  border-radius: 5px;
-  transition: background 0.2s;
-}
-
-.nav-link:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -265,8 +216,15 @@ function closeModal() {
 }
 
 .empty-icon {
-  font-size: 4rem;
+  color: #667eea;
+  opacity: 0.5;
   margin-bottom: 1rem;
+}
+
+.inline-icon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.25rem;
 }
 
 .empty-state h3 {
