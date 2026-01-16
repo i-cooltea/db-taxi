@@ -54,6 +54,12 @@
       @close="closeModal"
       @save="saveConfig"
     />
+
+    <TableMappingsModal
+      v-if="showTablesModal"
+      :config="viewingConfig"
+      @close="closeTablesModal"
+    />
   </div>
 </template>
 
@@ -63,6 +69,7 @@ import { RefreshCw, List, Plus } from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
 import ConfigCard from '../components/ConfigCard.vue'
 import ConfigModal from '../components/ConfigModal.vue'
+import TableMappingsModal from '../components/TableMappingsModal.vue'
 
 const store = useSyncStore()
 
@@ -70,6 +77,8 @@ const showModal = ref(false)
 const editingConfig = ref(null)
 const error = ref(null)
 const successMessage = ref(null)
+const showTablesModal = ref(false)
+const viewingConfig = ref(null)
 
 onMounted(async () => {
   await store.fetchConfigs()
@@ -136,10 +145,13 @@ async function startSync(config) {
 }
 
 function viewTables(config) {
-  const tableList = config.tables.map(t => 
-    `${t.source_table} → ${t.target_table} (${t.sync_mode})`
-  ).join('\n')
-  alert(`配置: ${config.name}\n\n同步表列表:\n${tableList || '(无)'}`)
+  viewingConfig.value = config
+  showTablesModal.value = true
+}
+
+function closeTablesModal() {
+  showTablesModal.value = false
+  viewingConfig.value = null
 }
 </script>
 

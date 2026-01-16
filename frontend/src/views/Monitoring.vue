@@ -134,39 +134,17 @@
       </div>
 
       <div v-else class="history-list">
-        <div v-for="job in jobHistory" :key="job.id" class="job-card history-card">
-          <div class="history-header">
-            <div class="history-title">
-              <h3>{{ job.config_name || '未知配置' }}</h3>
-              <span class="status-badge" :class="job.status">{{ getStatusText(job.status) }}</span>
-            </div>
-            <button @click="viewJobLogs(job.id)" class="btn btn-sm">查看日志</button>
-          </div>
-
-          <div class="history-meta">
-            <span class="meta-item">
-              <span class="meta-label">ID:</span> {{ job.id }}
-            </span>
-            <span class="meta-item">
-              <span class="meta-label">连接:</span> {{ job.connection_name || '未知' }}
-            </span>
-            <span class="meta-item">
-              <span class="meta-label">表:</span> {{ job.completed_tables }}/{{ job.total_tables }}
-            </span>
-            <span class="meta-item">
-              <span class="meta-label">行数:</span> {{ formatNumber(job.processed_rows) }}/{{ formatNumber(job.total_rows) }}
-            </span>
-            <span class="meta-item">
-              <span class="meta-label">开始:</span> {{ formatTime(job.start_time) }}
-            </span>
-            <span class="meta-item" v-if="job.end_time">
-              <span class="meta-label">耗时:</span> {{ calculateDuration(job.start_time, job.end_time) }}
-            </span>
-          </div>
-
-          <div v-if="job.error" class="job-error-compact">
-            <strong>错误:</strong> {{ job.error }}
-          </div>
+        <div v-for="job in jobHistory" :key="job.id" class="job-card-single-line">
+          <span class="status-badge-compact" :class="job.status">{{ getStatusText(job.status) }}</span>
+          <span class="job-name">{{ job.config_name || '未知配置' }}</span>
+          <span class="job-meta-inline">ID: {{ job.id.substring(0, 8) }}</span>
+          <span class="job-meta-inline">{{ job.connection_name || '未知' }}</span>
+          <span class="job-meta-inline">表: {{ job.completed_tables }}/{{ job.total_tables }}</span>
+          <span class="job-meta-inline">行: {{ formatNumber(job.processed_rows) }}</span>
+          <span class="job-meta-inline">{{ formatTime(job.start_time) }}</span>
+          <span class="job-meta-inline" v-if="job.end_time">{{ calculateDuration(job.start_time, job.end_time) }}</span>
+          <span v-if="job.error" class="job-error-inline" :title="job.error">错误</span>
+          <button @click="viewJobLogs(job.id)" class="btn btn-xs btn-inline">日志</button>
         </div>
       </div>
 
@@ -204,14 +182,12 @@
           <div v-else-if="jobLogs.length === 0" class="empty-state">
             <p>暂无日志记录</p>
           </div>
-          <div v-else class="logs-list">
-            <div v-for="log in jobLogs" :key="log.id" class="log-entry" :class="log.level">
-              <div class="log-header">
-                <span class="log-level" :class="log.level">{{ log.level.toUpperCase() }}</span>
-                <span class="log-time">{{ formatTime(log.created_at) }}</span>
-              </div>
-              <div class="log-table">表: {{ log.table_name }}</div>
-              <div class="log-message">{{ log.message }}</div>
+          <div v-else class="logs-list-compact">
+            <div v-for="log in jobLogs" :key="log.id" class="log-entry-single-line" :class="log.level">
+              <span class="log-level-compact" :class="log.level">{{ log.level.toUpperCase() }}</span>
+              <span class="log-table-inline">{{ log.table_name }}</span>
+              <span class="log-message-inline">{{ log.message }}</span>
+              <span class="log-time-inline">{{ formatTime(log.created_at) }}</span>
             </div>
           </div>
         </div>
@@ -884,7 +860,290 @@ function nextPage() {
   font-size: 0.875rem;
 }
 
-/* Compact History Card Styles */
+/* Single Line History Card Styles */
+.job-card-single-line {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #f9fafb;
+  border-radius: 4px;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid #e5e7eb;
+  transition: background 0.2s;
+  font-size: 0.8125rem;
+}
+
+.job-card-single-line:hover {
+  background: #f3f4f6;
+}
+
+.job-name {
+  font-weight: 600;
+  color: #1f2937;
+  min-width: 120px;
+}
+
+.job-meta-inline {
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.job-error-inline {
+  color: #ef4444;
+  font-weight: 600;
+  font-size: 0.75rem;
+  padding: 0.125rem 0.375rem;
+  background: #fee2e2;
+  border-radius: 3px;
+  cursor: help;
+}
+
+.btn-inline {
+  margin-left: auto;
+}
+
+/* Single Line Log Entry Styles */
+.log-entry-single-line {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.875rem;
+  border-radius: 4px;
+  border-left: 3px solid #e5e7eb;
+  font-size: 0.8125rem;
+}
+
+.log-entry-single-line.info {
+  background: #f0f9ff;
+  border-left-color: #3b82f6;
+}
+
+.log-entry-single-line.warn {
+  background: #fffbeb;
+  border-left-color: #f59e0b;
+}
+
+.log-entry-single-line.error {
+  background: #fef2f2;
+  border-left-color: #ef4444;
+}
+
+.log-table-inline {
+  font-weight: 500;
+  color: #1f2937;
+  min-width: 100px;
+}
+
+.log-message-inline {
+  flex: 1;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-time-inline {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+/* Old compact styles - keeping for backward compatibility */
+.job-card-compact {
+  background: #f9fafb;
+  border-radius: 6px;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid #e5e7eb;
+  transition: background 0.2s;
+}
+
+.job-card-compact:hover {
+  background: #f3f4f6;
+}
+
+.history-header-compact {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.history-title-compact {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex: 1;
+}
+
+.history-title-compact h3 {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.status-badge-compact {
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.status-badge-compact.pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge-compact.running {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-badge-compact.completed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-badge-compact.failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-badge-compact.cancelled {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.history-meta-compact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.meta-item-compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.meta-label-compact {
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.btn-xs {
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  border: none;
+  border-radius: 4px;
+  background: #f3f4f6;
+  color: #1f2937;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-weight: 500;
+}
+
+.btn-xs:hover {
+  background: #e5e7eb;
+}
+
+.job-error-compact {
+  margin-top: 0.5rem;
+  padding: 0.375rem 0.625rem;
+  background: #fee2e2;
+  border-radius: 4px;
+  color: #991b1b;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.job-error-compact strong {
+  font-weight: 600;
+}
+
+/* Compact Logs Styles */
+.logs-list-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.log-entry-compact {
+  padding: 0.625rem 0.875rem;
+  border-radius: 4px;
+  border-left: 3px solid #e5e7eb;
+}
+
+.log-entry-compact.info {
+  background: #f0f9ff;
+  border-left-color: #3b82f6;
+}
+
+.log-entry-compact.warn {
+  background: #fffbeb;
+  border-left-color: #f59e0b;
+}
+
+.log-entry-compact.error {
+  background: #fef2f2;
+  border-left-color: #ef4444;
+}
+
+.log-header-compact {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-bottom: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.log-level-compact {
+  padding: 0.0625rem 0.375rem;
+  border-radius: 3px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.log-level-compact.info {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.log-level-compact.warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.log-level-compact.error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.log-table-compact {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.log-time-compact {
+  font-size: 0.6875rem;
+  color: #9ca3af;
+  margin-left: auto;
+}
+
+.log-message-compact {
+  color: #1f2937;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+/* Old styles - keeping for backward compatibility */
 .history-card {
   padding: 0.875rem 1rem;
 }
