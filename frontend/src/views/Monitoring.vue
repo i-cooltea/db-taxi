@@ -1,5 +1,12 @@
 <template>
   <div>
+    <!-- Toast Notification -->
+    <Toast 
+      :show="toast.show" 
+      :message="toast.message" 
+      :type="toast.type"
+      @close="toast.show = false"
+    />
 
     <!-- Statistics Overview -->
     <div class="stats-grid">
@@ -37,9 +44,11 @@
     <div class="card" v-if="activeJobs.length > 0">
       <div class="card-header">
         <h2><Activity :size="20" class="inline-icon" /> 运行中的任务</h2>
-        <button @click="refreshActiveJobs" class="btn btn-secondary" :disabled="loading">
-          <RefreshCw :size="16" :class="{ 'spin': loading }" /> {{ loading ? '刷新中...' : '刷新' }}
-        </button>
+        <div class="header-actions">
+          <button @click="refreshActiveJobs" class="btn btn-secondary" :disabled="loading">
+            <RefreshCw :size="16" :class="{ 'spin': loading }" /> {{ loading ? '刷新中...' : '刷新' }}
+          </button>
+        </div>
       </div>
       <div class="active-jobs">
         <div v-for="job in activeJobs" :key="job.job_id" class="job-card active">
@@ -125,44 +134,38 @@
       </div>
 
       <div v-else class="history-list">
-        <div v-for="job in jobHistory" :key="job.id" class="job-card">
-          <div class="job-header">
-            <div class="job-info">
+        <div v-for="job in jobHistory" :key="job.id" class="job-card history-card">
+          <div class="history-header">
+            <div class="history-title">
               <h3>{{ job.config_name || '未知配置' }}</h3>
-              <span class="job-id">任务 ID: {{ job.id }}</span>
-              <span class="connection-name">连接: {{ job.connection_name || '未知' }}</span>
-            </div>
-            <div class="job-status">
               <span class="status-badge" :class="job.status">{{ getStatusText(job.status) }}</span>
-              <button @click="viewJobLogs(job.id)" class="btn btn-sm">查看日志</button>
             </div>
+            <button @click="viewJobLogs(job.id)" class="btn btn-sm">查看日志</button>
           </div>
 
-          <div class="job-stats">
-            <div class="stat-item">
-              <span class="stat-label">表数量:</span>
-              <span class="stat-value time-value">{{ job.completed_tables }} / {{ job.total_tables }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">处理行数:</span>
-              <span class="stat-value time-value">{{ formatNumber(job.processed_rows) }} / {{ formatNumber(job.total_rows) }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">开始时间:</span>
-              <span class="stat-value time-value">{{ formatTime(job.start_time) }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">结束时间:</span>
-              <span class="stat-value time-value">{{ job.end_time ? formatTime(job.end_time) : '-' }}</span>
-            </div>
-            <div class="stat-item" v-if="job.end_time">
-              <span class="stat-label">耗时:</span>
-              <span class="stat-value time-value">{{ calculateDuration(job.start_time, job.end_time) }}</span>
-            </div>
+          <div class="history-meta">
+            <span class="meta-item">
+              <span class="meta-label">ID:</span> {{ job.id }}
+            </span>
+            <span class="meta-item">
+              <span class="meta-label">连接:</span> {{ job.connection_name || '未知' }}
+            </span>
+            <span class="meta-item">
+              <span class="meta-label">表:</span> {{ job.completed_tables }}/{{ job.total_tables }}
+            </span>
+            <span class="meta-item">
+              <span class="meta-label">行数:</span> {{ formatNumber(job.processed_rows) }}/{{ formatNumber(job.total_rows) }}
+            </span>
+            <span class="meta-item">
+              <span class="meta-label">开始:</span> {{ formatTime(job.start_time) }}
+            </span>
+            <span class="meta-item" v-if="job.end_time">
+              <span class="meta-label">耗时:</span> {{ calculateDuration(job.start_time, job.end_time) }}
+            </span>
           </div>
 
-          <div v-if="job.error" class="job-error">
-            <strong>错误信息:</strong> {{ job.error }}
+          <div v-if="job.error" class="job-error-compact">
+            <strong>错误:</strong> {{ job.error }}
           </div>
         </div>
       </div>
@@ -266,6 +269,7 @@ import {
   RefreshCw, History, Play, Pause, X, FileText 
 } from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
+import Toast from '../components/Toast.vue'
 
 const syncStore = useSyncStore()
 
@@ -283,6 +287,11 @@ const showStartSyncModal = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const refreshInterval = ref(null)
+const toast = ref({
+  show: false,
+  message: '',
+  type: 'info'
+})
 
 // Load initial data
 onMounted(async () => {
@@ -333,10 +342,17 @@ async function loadStats() {
 
 async function loadActiveJobs() {
   try {
+    console.log('Loading active jobs...')
     const response = await fetch('/api/sync/jobs/active')
     const result = await response.json()
+    console.log('Active jobs response:', result)
     if (result.success) {
-      activeJobs.value = result.data || []
+      const newJobs = result.data || []
+      console.log('Active jobs count:', newJobs.length)
+      console.log('Active jobs:', newJobs)
+      activeJobs.value = newJobs
+    } else {
+      console.error('Failed to load active jobs:', result.error)
     }
   } catch (error) {
     console.error('Failed to load active jobs:', error)
@@ -375,8 +391,10 @@ async function loadAvailableConfigs() {
 }
 
 async function refreshActiveJobs() {
+  console.log('Refreshing active jobs...')
   await loadActiveJobs()
   await loadStats()
+  console.log('Active jobs refreshed')
 }
 
 async function refreshHistory() {
@@ -432,15 +450,27 @@ async function startSync() {
     
     const result = await response.json()
     if (result.success) {
-      alert('同步任务已启动！')
+      toast.value = {
+        show: true,
+        message: '同步任务已成功启动！',
+        type: 'success'
+      }
       closeStartSyncModal()
       await loadAllData()
     } else {
-      alert('启动失败: ' + (result.error || '未知错误'))
+      toast.value = {
+        show: true,
+        message: '启动失败: ' + (result.error || '未知错误'),
+        type: 'error'
+      }
     }
   } catch (error) {
     console.error('Failed to start sync:', error)
-    alert('启动失败: ' + error.message)
+    toast.value = {
+      show: true,
+      message: '启动失败: ' + error.message,
+      type: 'error'
+    }
   } finally {
     loading.value = false
   }
@@ -457,14 +487,26 @@ async function stopJob(jobId) {
     
     const result = await response.json()
     if (result.success) {
-      alert('任务已停止')
+      toast.value = {
+        show: true,
+        message: '任务已成功停止',
+        type: 'success'
+      }
       await refreshActiveJobs()
     } else {
-      alert('停止失败: ' + (result.error || '未知错误'))
+      toast.value = {
+        show: true,
+        message: '停止失败: ' + (result.error || '未知错误'),
+        type: 'error'
+      }
     }
   } catch (error) {
     console.error('Failed to stop job:', error)
-    alert('停止失败: ' + error.message)
+    toast.value = {
+      show: true,
+      message: '停止失败: ' + error.message,
+      type: 'error'
+    }
   } finally {
     loading.value = false
   }
@@ -481,14 +523,26 @@ async function cancelJob(jobId) {
     
     const result = await response.json()
     if (result.success) {
-      alert('任务已取消')
+      toast.value = {
+        show: true,
+        message: '任务已成功取消',
+        type: 'success'
+      }
       await refreshActiveJobs()
     } else {
-      alert('取消失败: ' + (result.error || '未知错误'))
+      toast.value = {
+        show: true,
+        message: '取消失败: ' + (result.error || '未知错误'),
+        type: 'error'
+      }
     }
   } catch (error) {
     console.error('Failed to cancel job:', error)
-    alert('取消失败: ' + error.message)
+    toast.value = {
+      show: true,
+      message: '取消失败: ' + error.message,
+      type: 'error'
+    }
   } finally {
     loading.value = false
   }
@@ -505,8 +559,14 @@ function viewJobDetails(jobId) {
 }
 
 function getConfigName(configId) {
-  const config = syncStore.configs.find(c => c.id === configId)
-  return config?.name || configId
+  // First try to find in availableConfigs (loaded in this component)
+  const config = availableConfigs.value.find(c => c.id === configId)
+  if (config) {
+    return config.name
+  }
+  // Fallback to syncStore
+  const storeConfig = syncStore.configs.find(c => c.id === configId)
+  return storeConfig?.name || configId
 }
 
 function getStatusText(status) {
@@ -654,6 +714,11 @@ function nextPage() {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .card h2 {
@@ -817,6 +882,58 @@ function nextPage() {
   border-radius: 6px;
   color: #991b1b;
   font-size: 0.875rem;
+}
+
+/* Compact History Card Styles */
+.history-card {
+  padding: 0.875rem 1rem;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.625rem;
+}
+
+.history-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.history-title h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #1f2937;
+}
+
+.history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.meta-label {
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.job-error-compact {
+  margin-top: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  background: #fee2e2;
+  border-radius: 4px;
+  color: #991b1b;
+  font-size: 0.8125rem;
 }
 
 /* Table Progress */

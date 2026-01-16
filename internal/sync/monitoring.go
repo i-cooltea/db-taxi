@@ -23,6 +23,7 @@ type MonitoringServiceImpl struct {
 // JobMonitor tracks the progress of a single sync job
 type JobMonitor struct {
 	JobID           string
+	ConfigID        string
 	StartTime       time.Time
 	LastUpdate      time.Time
 	CurrentTable    string
@@ -51,8 +52,15 @@ func (m *MonitoringServiceImpl) StartJobMonitoring(ctx context.Context, jobID st
 	m.jobsMutex.Lock()
 	defer m.jobsMutex.Unlock()
 
+	// Get job details from repository to fetch ConfigID
+	job, err := m.repo.GetSyncJob(ctx, jobID)
+	if err != nil {
+		return fmt.Errorf("failed to get job details: %w", err)
+	}
+
 	monitor := &JobMonitor{
 		JobID:          jobID,
+		ConfigID:       job.ConfigID,
 		StartTime:      time.Now(),
 		LastUpdate:     time.Now(),
 		TablesProgress: make(map[string]*TableProgress),
@@ -264,15 +272,36 @@ func (m *MonitoringServiceImpl) FinishJobMonitoring(ctx context.Context, jobID s
 	m.jobsMutex.Lock()
 	defer m.jobsMutex.Unlock()
 
+	m.logger.WithFields(logrus.Fields{
+		"job_id": jobID,
+		"status": status,
+	}).Info("FinishJobMonitoring called")
+
 	monitor, exists := m.activeJobs[jobID]
 	if !exists {
+		m.logger.WithField("job_id", jobID).Warn("Job monitor not found in activeJobs map")
 		return fmt.Errorf("job monitor not found: %s", jobID)
 	}
 
-	// Update final job status
+	// Always remove from active jobs, even if database update fails
+	// This prevents zombie jobs
+	defer func() {
+		m.logger.WithField("job_id", jobID).Info("Removing job from activeJobs map")
+		delete(m.activeJobs, jobID)
+		m.logger.WithField("job_id", jobID).Info("Job removed from activeJobs map successfully")
+
+		// Invalidate statistics cache
+		m.statsMutex.Lock()
+		m.statisticsCache = nil
+		m.statsMutex.Unlock()
+	}()
+
+	// Update final job status in database
 	job, err := m.repo.GetSyncJob(ctx, jobID)
 	if err != nil {
-		return fmt.Errorf("failed to get sync job: %w", err)
+		m.logger.WithError(err).WithField("job_id", jobID).Error("Failed to get sync job from repository")
+		// Don't return error - we still want to remove from activeJobs
+		return nil
 	}
 
 	now := time.Now()
@@ -283,7 +312,9 @@ func (m *MonitoringServiceImpl) FinishJobMonitoring(ctx context.Context, jobID s
 	}
 
 	if err := m.repo.UpdateSyncJob(ctx, jobID, job); err != nil {
-		return fmt.Errorf("failed to update sync job: %w", err)
+		m.logger.WithError(err).WithField("job_id", jobID).Error("Failed to update sync job in repository")
+		// Don't return error - we still want to remove from activeJobs
+		return nil
 	}
 
 	// Log completion
@@ -297,14 +328,6 @@ func (m *MonitoringServiceImpl) FinishJobMonitoring(ctx context.Context, jobID s
 		"processed_rows":   monitor.ProcessedRows,
 		"error_count":      monitor.ErrorCount,
 	}).Info("Finished job monitoring")
-
-	// Remove from active jobs
-	delete(m.activeJobs, jobID)
-
-	// Invalidate statistics cache
-	m.statsMutex.Lock()
-	m.statisticsCache = nil
-	m.statsMutex.Unlock()
 
 	return nil
 }
@@ -445,6 +468,7 @@ func (m *MonitoringServiceImpl) GetActiveJobs(ctx context.Context) ([]*JobSummar
 
 		summary := &JobSummary{
 			JobID:           monitor.JobID,
+			ConfigID:        monitor.ConfigID,
 			StartTime:       monitor.StartTime,
 			TotalTables:     monitor.TotalTables,
 			CompletedTables: monitor.CompletedTables,

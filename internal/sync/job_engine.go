@@ -448,8 +448,20 @@ func (w *JobWorker) processJob(job *SyncJob) {
 		w.logger.WithError(err).WithField("job_id", job.ID).Warn("Failed to log job event")
 	}
 
-	// Execute the job
-	err := w.executeJobWithRecovery(ctx, job)
+	// Execute the job with panic recovery
+	var err error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("job execution panicked: %v", r)
+				w.logger.WithFields(logrus.Fields{
+					"job_id": job.ID,
+					"panic":  r,
+				}).Error("Job execution panicked")
+			}
+		}()
+		err = w.executeJob(ctx, job)
+	}()
 
 	// Update final job status
 	now := time.Now()
@@ -476,8 +488,15 @@ func (w *JobWorker) processJob(job *SyncJob) {
 	}
 
 	// Finish monitoring
+	w.logger.WithFields(logrus.Fields{
+		"job_id": job.ID,
+		"status": job.Status,
+	}).Info("Calling FinishJobMonitoring")
+
 	if monitorErr := w.engine.monitoring.FinishJobMonitoring(ctx, job.ID, job.Status, job.Error); monitorErr != nil {
-		w.logger.WithError(monitorErr).WithField("job_id", job.ID).Warn("Failed to finish job monitoring")
+		w.logger.WithError(monitorErr).WithField("job_id", job.ID).Error("Failed to finish job monitoring")
+	} else {
+		w.logger.WithField("job_id", job.ID).Info("FinishJobMonitoring completed successfully")
 	}
 
 	// Log job completion

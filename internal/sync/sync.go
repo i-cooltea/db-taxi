@@ -44,7 +44,7 @@ func NewManager(cfg *config.Config, db *sqlx.DB, logger *logrus.Logger) (*Manage
 
 	// Create services
 	connectionManager := NewConnectionManager(repo, logger, db)
-	syncManager := NewSyncManager(repo, logger, db, jobEngine)
+	syncManager := NewSyncManager(repo, logger, db, jobEngine, monitoring)
 	mappingManager := NewMappingManager(db, repo, logger)
 
 	// Set job engine reference in sync manager

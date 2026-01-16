@@ -1,6 +1,16 @@
 <template>
   <div>
 
+    <div v-if="error" class="alert alert-error">
+      {{ error }}
+      <button class="alert-close" @click="error = null">&times;</button>
+    </div>
+
+    <div v-if="successMessage" class="alert alert-success">
+      {{ successMessage }}
+      <button class="alert-close" @click="successMessage = null">&times;</button>
+    </div>
+
     <div class="card">
       <div class="card-header">
         <h2><List :size="20" class="inline-icon" /> 同步配置列表</h2>
@@ -49,17 +59,17 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { RefreshCw, List, Plus } from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
 import ConfigCard from '../components/ConfigCard.vue'
 import ConfigModal from '../components/ConfigModal.vue'
 
-const router = useRouter()
 const store = useSyncStore()
 
 const showModal = ref(false)
 const editingConfig = ref(null)
+const error = ref(null)
+const successMessage = ref(null)
 
 onMounted(async () => {
   await store.fetchConfigs()
@@ -108,12 +118,19 @@ async function deleteConfig(config) {
 }
 
 async function startSync(config) {
-  if (confirm('确定要启动同步任务吗？')) {
+  if (confirm(`确定要启动同步任务 "${config.name}" 吗？`)) {
     try {
+      error.value = null
       const job = await store.startSync(config.id)
-      router.push(`/monitoring?job_id=${job.id}`)
-    } catch (error) {
-      console.error('Failed to start sync:', error)
+      successMessage.value = `同步任务已成功启动！任务ID: ${job.id}`
+      
+      // 自动清除成功消息
+      setTimeout(() => {
+        successMessage.value = null
+      }, 5000)
+    } catch (err) {
+      error.value = `启动同步任务失败: ${err.message}`
+      console.error('Failed to start sync:', err)
     }
   }
 }
@@ -167,5 +184,47 @@ function viewTables(config) {
   display: inline-block;
   vertical-align: middle;
   margin-right: 0.25rem;
+}
+
+.alert {
+  padding: 1rem;
+  border-radius: 5px;
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  animation: slideIn 0.3s;
+}
+
+.alert-success {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.alert-error {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.alert-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.7;
+  padding: 0;
+  line-height: 1;
+}
+
+.alert-close:hover {
+  opacity: 1;
+}
+
+@keyframes slideIn {
+  from { transform: translateY(-20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 </style>
