@@ -63,7 +63,7 @@ make migrate
 
 ## Current Migrations
 
-1. **001_create_sync_tables.sql** - Core sync system tables
+1. **b-002_create_sync_tables.sql** - Core sync system tables
 2. **002_add_initial_data.sql** - Initial data and indexes
 
 ## Common Issues

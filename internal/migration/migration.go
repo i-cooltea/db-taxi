@@ -261,7 +261,8 @@ func (m *Manager) applyMigration(ctx context.Context, migration *Migration) erro
 	}
 	defer tx.Rollback()
 
-	// Execute migration SQL
+	// Execute migration SQL as a single multi-statement query
+	// Database connection has multiStatements=true enabled
 	if _, err := tx.ExecContext(ctx, migration.SQL); err != nil {
 		return fmt.Errorf("failed to execute migration SQL: %w", err)
 	}

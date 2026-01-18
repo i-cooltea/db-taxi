@@ -1,11 +1,12 @@
-.PHONY: help build run test migrate migrate-status migrate-version clean diagnose-jobs fix-jobs test-job-engine diagnose-engine
+.PHONY: help build run test migrate migrate-status migrate-version clean diagnose-jobs fix-jobs test-job-engine diagnose-engine build-frontend
 
 # Default target
 help:
 	@echo "DB-Taxi Makefile"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  build              Build the application"
+	@echo "  build              Build the application "
+	@echo " build-frontend     Build frontend and copy to static directory"
 	@echo "  run                Run the application"
 	@echo "  test               Run tests"
 	@echo "  test-job-engine    Test job engine startup"
@@ -86,11 +87,20 @@ migrate-version:
 			$(if $(DB),-d $(DB),); \
 	fi
 
+# Build frontend and copy to static directory
+build-frontend:
+	@echo "Building frontend..."
+	@cd frontend && npm install && npm run build
+	@echo "Copying frontend build to static directory..."
+	@cp -r frontend/dist/* static/
+	@echo "Frontend build complete"
+
 # Clean build artifacts
 clean:
 	@echo "Cleaning build artifacts..."
 	rm -f db-taxi
 	rm -rf dist/
+	rm -rf frontend/dist/
 	@echo "Clean complete"
 
 # Diagnose stuck sync jobs

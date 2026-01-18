@@ -241,7 +241,7 @@ make migrate
 make migrate 2>&1 | tee migrate.log
 
 # 手动创建表（如果需要）
-mysql -u root -p myapp < internal/migration/sql/001_create_sync_tables.sql
+mysql -u root -p myapp < internal/migration/sql/b-002_create_sync_tables.sql
 mysql -u root -p myapp < internal/migration/sql/002_add_initial_data.sql
 ```
 

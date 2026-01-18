@@ -125,5 +125,11 @@ func buildDSN(cfg *config.DatabaseConfig) (string, error) {
 		mysqlConfig.TLSConfig = "false"
 	}
 
-	return mysqlConfig.FormatDSN(), nil
+	// Get base DSN
+	dsn := mysqlConfig.FormatDSN()
+
+	// Add multiStatements=true to enable execution of multiple SQL statements
+	dsn += "&multiStatements=true"
+
+	return dsn, nil
 }

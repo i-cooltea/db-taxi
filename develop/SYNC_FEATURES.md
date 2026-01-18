@@ -49,7 +49,7 @@ Run the migration script to create sync tables:
 
 ```sql
 -- Run the migration script
-source migrations/001_create_sync_tables.sql
+source migrations/b-002_create_sync_tables.sql
 ```
 
 ## API Endpoints

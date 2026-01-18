@@ -13,15 +13,16 @@ import (
 
 // Manager represents the main sync system manager
 type Manager struct {
-	config            *config.Config
-	logger            *logrus.Logger
-	db                *sqlx.DB
-	repo              Repository
-	connectionManager ConnectionManager
-	syncManager       SyncManager
-	mappingManager    MappingManager
-	jobEngine         JobEngine
-	syncEngine        SyncEngine
+	config             *config.Config
+	logger             *logrus.Logger
+	db                 *sqlx.DB
+	repo               Repository
+	connectionManager  ConnectionManager
+	syncManager        SyncManager
+	mappingManager     MappingManager
+	jobEngine          JobEngine
+	syncEngine         SyncEngine
+	migrationsExecuted bool // Tracks whether migrations have been executed
 }
 
 // NewManager creates a new sync system manager
@@ -72,9 +73,14 @@ func NewManager(cfg *config.Config, db *sqlx.DB, logger *logrus.Logger) (*Manage
 func (m *Manager) Initialize(ctx context.Context) error {
 	m.logger.Info("Initializing sync system...")
 
-	// Run database migrations
-	if err := m.runMigrations(ctx); err != nil {
-		return fmt.Errorf("failed to run migrations: %w", err)
+	// Run database migrations if not already executed
+	if !m.migrationsExecuted {
+		if err := m.runMigrations(ctx); err != nil {
+			return fmt.Errorf("failed to run migrations: %w", err)
+		}
+		m.migrationsExecuted = true
+	} else {
+		m.logger.Info("Migrations already executed, skipping...")
 	}
 
 	// Start job engine

@@ -104,6 +104,21 @@ func (s *Server) Start() error {
 
 	s.logger.Infof("Starting server on %s", addr)
 
+	// If sync system initialization failed during server creation, try again after starting the server
+	// This ensures migrations are run even if database was initially unavailable
+	if s.syncManager == nil && s.dbPool != nil && s.config.Sync.Enabled {
+		s.logger.Info("Attempting to initialize sync system and run migrations...")
+		go func() {
+			// Give server a moment to fully start
+			time.Sleep(2 * time.Second)
+			if err := s.initSyncSystem(); err != nil {
+				s.logger.WithError(err).Warn("Failed to initialize sync system after server start")
+			} else {
+				s.logger.Info("Successfully initialized sync system and ran migrations")
+			}
+		}()
+	}
+
 	if s.config.Server.EnableHTTPS {
 		return s.httpServer.ListenAndServeTLS(s.config.Server.CertFile, s.config.Server.KeyFile)
 	}
@@ -149,15 +164,80 @@ func (s *Server) registerRoutes() {
 
 		// Sync API routes
 		if s.syncManager != nil {
-			s.registerSyncRoutes(api)
+			sync := api.Group("/sync")
+			{
+				// Connection management routes
+				connections := sync.Group("/connections")
+				{
+					connections.GET("", s.getSyncConnections)
+					connections.POST("", s.createSyncConnection)
+					connections.POST("/test", s.testSyncConnectionConfig)
+					connections.GET("/:id", s.getSyncConnection)
+					connections.PUT("/:id", s.updateSyncConnection)
+					connections.DELETE("/:id", s.deleteSyncConnection)
+					connections.POST("/:id/test", s.testSyncConnection)
+					connections.GET("/:id/tables", s.getConnectionTables)
+				}
+
+				// Sync configuration routes
+				configs := sync.Group("/configs")
+				{
+					configs.GET("", s.getSyncConfigs)
+					configs.POST("", s.createSyncConfig)
+					configs.GET("/:id", s.getSyncConfig)
+					configs.PUT("/:id", s.updateSyncConfig)
+					configs.DELETE("/:id", s.deleteSyncConfig)
+
+					// Table mapping routes
+					configs.GET("/:id/tables", s.getRemoteTables)
+					configs.GET("/:id/tables/:table/schema", s.getRemoteTableSchema)
+					configs.GET("/:id/mappings", s.getTableMappings)
+					configs.POST("/:id/mappings", s.addTableMapping)
+					configs.PUT("/:id/mappings/:mapping_id", s.updateTableMapping)
+					configs.DELETE("/:id/mappings/:mapping_id", s.removeTableMapping)
+					configs.POST("/:id/mappings/:mapping_id/toggle", s.toggleTableMapping)
+					configs.POST("/:id/mappings/:mapping_id/sync-mode", s.setTableSyncMode)
+				}
+
+				// Job management routes
+				jobs := sync.Group("/jobs")
+				{
+					jobs.GET("", s.getSyncJobs)
+					jobs.POST("", s.startSyncJob)
+					jobs.GET("/:id", s.getSyncJob)
+					jobs.POST("/:id/stop", s.stopSyncJob)
+					jobs.POST("/:id/cancel", s.cancelSyncJob)
+					jobs.GET("/:id/logs", s.getSyncJobLogs)
+					jobs.GET("/:id/progress", s.getSyncJobProgress)
+					jobs.GET("/active", s.getActiveSyncJobs)
+					jobs.GET("/history", s.getSyncJobHistory)
+				}
+
+				// System routes
+				sync.GET("/status", s.getSyncStatus)
+				sync.GET("/stats", s.getSyncStats)
+
+				// Config management routes
+				sync.GET("/config/export", s.exportConfig)
+				sync.POST("/config/import", s.importConfig)
+				sync.POST("/config/validate", s.validateConfig)
+				sync.GET("/config/backup", s.backupConfig)
+			}
 		}
 	}
 
 	// Serve static files
 	s.engine.Static("/static", "./static")
+	// Serve assets directory directly (for frontend resource references)
+	s.engine.Static("/assets", "./static/assets")
 
 	// Serve index.html at root path
 	s.engine.GET("/", func(c *gin.Context) {
+		c.File("./static/index.html")
+	})
+
+	// Handle client-side routing - serve index.html for all other routes
+	s.engine.NoRoute(func(c *gin.Context) {
 		c.File("./static/index.html")
 	})
 }
@@ -455,65 +535,6 @@ func (s *Server) initSyncSystem() error {
 
 // registerSyncRoutes registers sync-related API routes
 func (s *Server) registerSyncRoutes(api *gin.RouterGroup) {
-	sync := api.Group("/sync")
-	{
-		// Connection management routes
-		connections := sync.Group("/connections")
-		{
-			connections.GET("", s.getSyncConnections)
-			connections.POST("", s.createSyncConnection)
-			connections.POST("/test", s.testSyncConnectionConfig)
-			connections.GET("/:id", s.getSyncConnection)
-			connections.PUT("/:id", s.updateSyncConnection)
-			connections.DELETE("/:id", s.deleteSyncConnection)
-			connections.POST("/:id/test", s.testSyncConnection)
-			connections.GET("/:id/tables", s.getConnectionTables)
-		}
-
-		// Sync configuration routes
-		configs := sync.Group("/configs")
-		{
-			configs.GET("", s.getSyncConfigs)
-			configs.POST("", s.createSyncConfig)
-			configs.GET("/:id", s.getSyncConfig)
-			configs.PUT("/:id", s.updateSyncConfig)
-			configs.DELETE("/:id", s.deleteSyncConfig)
-
-			// Table mapping routes
-			configs.GET("/:id/tables", s.getRemoteTables)
-			configs.GET("/:id/tables/:table/schema", s.getRemoteTableSchema)
-			configs.GET("/:id/mappings", s.getTableMappings)
-			configs.POST("/:id/mappings", s.addTableMapping)
-			configs.PUT("/:id/mappings/:mapping_id", s.updateTableMapping)
-			configs.DELETE("/:id/mappings/:mapping_id", s.removeTableMapping)
-			configs.POST("/:id/mappings/:mapping_id/toggle", s.toggleTableMapping)
-			configs.POST("/:id/mappings/:mapping_id/sync-mode", s.setTableSyncMode)
-		}
-
-		// Job management routes
-		jobs := sync.Group("/jobs")
-		{
-			jobs.GET("", s.getSyncJobs)
-			jobs.POST("", s.startSyncJob)
-			jobs.GET("/:id", s.getSyncJob)
-			jobs.POST("/:id/stop", s.stopSyncJob)
-			jobs.POST("/:id/cancel", s.cancelSyncJob)
-			jobs.GET("/:id/logs", s.getSyncJobLogs)
-			jobs.GET("/:id/progress", s.getSyncJobProgress)
-			jobs.GET("/active", s.getActiveSyncJobs)
-			jobs.GET("/history", s.getSyncJobHistory)
-		}
-
-		// System routes
-		sync.GET("/status", s.getSyncStatus)
-		sync.GET("/stats", s.getSyncStats)
-
-		// Config management routes
-		sync.GET("/config/export", s.exportConfig)
-		sync.POST("/config/import", s.importConfig)
-		sync.POST("/config/validate", s.validateConfig)
-		sync.GET("/config/backup", s.backupConfig)
-	}
 }
 
 // Sync connection handlers

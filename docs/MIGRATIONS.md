@@ -77,7 +77,7 @@ XXX_description.sql
 - `description`: Brief description using underscores
 
 Examples:
-- `001_create_sync_tables.sql`
+- `b-002_create_sync_tables.sql`
 - `002_add_initial_data.sql`
 - `003_add_performance_indexes.sql`
 

@@ -35,7 +35,7 @@ January 11, 2026
 **Location**: `internal/migration/sql/`
 
 **Files Created**:
-1. **001_create_sync_tables.sql**
+1. **b-002_create_sync_tables.sql**
    - Creates all core synchronization tables
    - Tables: connections, sync_configs, table_mappings, sync_jobs, sync_logs, sync_checkpoints, database_mappings
    - Includes proper indexes and foreign keys
