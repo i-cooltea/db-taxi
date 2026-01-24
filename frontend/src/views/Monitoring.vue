@@ -185,7 +185,6 @@
               :key="log.id" 
               class="log-entry-single-line" 
               :class="log.level"
-              @click="toggleLogExpanded(log.id)"
             >
               <span class="log-level-compact" :class="log.level">{{ log.level.toUpperCase() }}</span>
               <span class="log-table-inline">{{ log.table_name }}</span>
@@ -193,9 +192,13 @@
                 {{ log.message }}
               </span>
               <span class="log-time-inline">{{ formatTime(log.created_at) }}</span>
-              <span class="log-expand-icon" v-if="log.message.length > 100">
+              <button 
+                class="log-expand-btn" 
+                @click.stop="toggleLogExpanded(log.id)"
+                v-if="log.message && log.message.length > 50"
+              >
                 {{ expandedLogs.has(log.id) ? '收起' : '展开' }}
-              </span>
+              </button>
             </div>
           </div>
         </div>
@@ -271,13 +274,12 @@ const showStartSyncModal = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const refreshInterval = ref(null)
+const expandedLogs = ref(new Set())
 const toast = ref({
   show: false,
   message: '',
   type: 'info'
 })
-
-const expandedLogs = ref(new Set())
 
 // Load initial data
 onMounted(async () => {
@@ -923,18 +925,12 @@ function nextPage() {
 /* Single Line Log Entry Styles */
 .log-entry-single-line {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
-  padding: 0.5rem 0.875rem;
+  padding: 0.75rem 0.875rem;
   border-radius: 4px;
   border-left: 3px solid #e5e7eb;
   font-size: 0.8125rem;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.log-entry-single-line:hover {
-  background-color: #f9fafb;
 }
 
 .log-entry-single-line.info {
@@ -964,31 +960,34 @@ function nextPage() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.5;
 }
 
 .log-message-inline.expanded {
   white-space: pre-wrap;
   word-break: break-word;
   overflow: visible;
+}
 .log-time-inline {
   font-size: 0.75rem;
   color: #9ca3af;
+  flex-shrink: 0;
 }
 
-.log-expand-icon {
+.log-expand-btn {
   font-size: 0.75rem;
   color: #667eea;
   cursor: pointer;
   padding: 0.25rem 0.5rem;
   border-radius: 3px;
   background: #f3f4f6;
+  border: none;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.log-expand-icon:hover {
+.log-expand-btn:hover {
   background: #e5e7eb;
-}  white-space: nowrap;
-  margin-left: auto;
 }
 
 /* Old compact styles - keeping for backward compatibility */
