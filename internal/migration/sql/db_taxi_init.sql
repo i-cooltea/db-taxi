@@ -3,7 +3,7 @@
 -- Description: 创建同步系统所需的数据库表
 -- 适配所有MySQL版本（5.5+/5.6+/5.7+/8.0+），解决BOOLEAN/JSON语法兼容问题
 -- Create connections table
-CREATE TABLE `connections` (
+CREATE TABLE IF NOT EXISTS `connections` (
 `id` VARCHAR(36) NOT NULL,
 `name` VARCHAR(255) NOT NULL,
 `host` VARCHAR(255) NOT NULL,
