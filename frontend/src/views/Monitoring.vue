@@ -120,9 +120,6 @@
       <div class="card-header">
         <h2><History :size="20" class="inline-icon" /> 同步历史</h2>
         <div class="header-actions">
-          <button @click="showStartSyncModal = true" class="btn btn-primary" :disabled="loading">
-            <Play :size="16" /> 启动同步
-          </button>
           <button @click="refreshHistory" class="btn btn-secondary" :disabled="loading">
             <RefreshCw :size="16" :class="{ 'spin': loading }" /> {{ loading ? '刷新中...' : '刷新' }}
           </button>
@@ -183,11 +180,22 @@
             <p>暂无日志记录</p>
           </div>
           <div v-else class="logs-list-compact">
-            <div v-for="log in jobLogs" :key="log.id" class="log-entry-single-line" :class="log.level">
+            <div 
+              v-for="log in jobLogs" 
+              :key="log.id" 
+              class="log-entry-single-line" 
+              :class="log.level"
+              @click="toggleLogExpanded(log.id)"
+            >
               <span class="log-level-compact" :class="log.level">{{ log.level.toUpperCase() }}</span>
               <span class="log-table-inline">{{ log.table_name }}</span>
-              <span class="log-message-inline">{{ log.message }}</span>
+              <span class="log-message-inline" :class="{ expanded: expandedLogs.has(log.id) }">
+                {{ log.message }}
+              </span>
               <span class="log-time-inline">{{ formatTime(log.created_at) }}</span>
+              <span class="log-expand-icon" v-if="log.message.length > 100">
+                {{ expandedLogs.has(log.id) ? '收起' : '展开' }}
+              </span>
             </div>
           </div>
         </div>
@@ -268,6 +276,8 @@ const toast = ref({
   message: '',
   type: 'info'
 })
+
+const expandedLogs = ref(new Set())
 
 // Load initial data
 onMounted(async () => {
@@ -402,6 +412,14 @@ async function viewJobLogs(jobId) {
 function closeLogsModal() {
   showLogsModal.value = false
   jobLogs.value = []
+}
+
+function toggleLogExpanded(logId) {
+  if (expandedLogs.value.has(logId)) {
+    expandedLogs.value.delete(logId)
+  } else {
+    expandedLogs.value.add(logId)
+  }
 }
 
 function closeStartSyncModal() {
@@ -911,6 +929,12 @@ function nextPage() {
   border-radius: 4px;
   border-left: 3px solid #e5e7eb;
   font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.log-entry-single-line:hover {
+  background-color: #f9fafb;
 }
 
 .log-entry-single-line.info {
@@ -942,10 +966,28 @@ function nextPage() {
   white-space: nowrap;
 }
 
+.log-message-inline.expanded {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: visible;
 .log-time-inline {
   font-size: 0.75rem;
   color: #9ca3af;
+}
+
+.log-expand-icon {
+  font-size: 0.75rem;
+  color: #667eea;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+  background: #f3f4f6;
   white-space: nowrap;
+}
+
+.log-expand-icon:hover {
+  background: #e5e7eb;
+}  white-space: nowrap;
   margin-left: auto;
 }
 
