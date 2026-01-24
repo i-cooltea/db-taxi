@@ -25,14 +25,6 @@
         <span class="detail-label">同步计划:</span>
         <span class="detail-value">{{ config.schedule }}</span>
       </div>
-      <div v-if="config.options" class="detail-row">
-        <span class="detail-label">批处理大小:</span>
-        <span class="detail-value">{{ config.options.batch_size || 1000 }}</span>
-      </div>
-      <div v-if="config.options" class="detail-row">
-        <span class="detail-label">最大并发:</span>
-        <span class="detail-value">{{ config.options.max_concurrency || 5 }}</span>
-      </div>
     </div>
 
     <div class="config-actions">

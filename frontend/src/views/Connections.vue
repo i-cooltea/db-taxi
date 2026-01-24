@@ -75,12 +75,14 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { Plug, List, Plus, AlertTriangle } from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
 import ConnectionCard from '../components/ConnectionCard.vue'
 import ConnectionModal from '../components/ConnectionModal.vue'
 
 const syncStore = useSyncStore()
+const { connections, loading } = storeToRefs(syncStore)
 
 const error = ref(null)
 const successMessage = ref(null)
@@ -91,8 +93,6 @@ const editingConnection = ref(null)
 const deletingConnection = ref(null)
 const deleting = ref(false)
 const testingConnections = ref(new Set())
-
-const { connections, loading } = syncStore
 
 onMounted(async () => {
   try {
