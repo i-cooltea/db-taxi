@@ -474,6 +474,19 @@ func (e *DefaultSyncEngine) createOrRecreateTargetTable(ctx context.Context, loc
 	// Build CREATE TABLE statement
 	createQuery := e.buildCreateTableStatement(localDB, tableName, schema)
 
+	// ======= 【添加下面这段代码来打印 SQL】 =======
+	fmt.Println("\n==========================================")
+	fmt.Printf("DEBUG: 准备在目标库执行的 SQL 语句如下：\n%s\n", createQuery)
+	fmt.Println("==========================================\n")
+	// =============================================
+
+	// ======= 核心修复代码开始 =======
+	// 将 SQL 中的 DEFAULT_GENERATED 替换为空格
+	createQuery = strings.ReplaceAll(createQuery, "DEFAULT_GENERATED", "")
+	// 如果存在多个空格，可以简单处理一下（可选）
+	createQuery = strings.ReplaceAll(createQuery, "  ", " ")
+	// ======= 核心修复代码结束 =======
+
 	// Execute CREATE TABLE
 	if _, err := e.localDB.ExecContext(ctx, createQuery); err != nil {
 		return fmt.Errorf("failed to create table: %w", err)
