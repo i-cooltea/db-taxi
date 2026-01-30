@@ -33,14 +33,14 @@
         <!-- Basic Configuration Tab -->
         <div v-show="activeTab === 'basic'" class="tab-content">
           <div class="form-group">
-            <label for="connection">选择连接 *</label>
+            <label for="source-connection">源连接（数据来源）*</label>
             <select 
-              id="connection" 
-              v-model="formData.connection_id" 
+              id="source-connection" 
+              v-model="formData.source_connection_id" 
               required
-              @change="onConnectionChange"
+              @change="onSourceConnectionChange"
             >
-              <option value="">请选择数据库连接</option>
+              <option value="">请选择源数据库连接</option>
               <option 
                 v-for="conn in connections" 
                 :key="conn.config.id"
@@ -49,7 +49,26 @@
                 {{ conn.config.name }} ({{ conn.config.host }}:{{ conn.config.port }})
               </option>
             </select>
-            <small>选择要同步的远程数据库连接</small>
+            <small>选择数据来源的数据库连接</small>
+          </div>
+
+          <div class="form-group">
+            <label for="target-connection">目标连接（数据目标）*</label>
+            <select 
+              id="target-connection" 
+              v-model="formData.target_connection_id" 
+              required
+            >
+              <option value="">请选择目标数据库连接</option>
+              <option 
+                v-for="conn in connections" 
+                :key="conn.config.id"
+                :value="conn.config.id"
+              >
+                {{ conn.config.name }} ({{ conn.config.host }}:{{ conn.config.port }})
+              </option>
+            </select>
+            <small>选择数据同步到的目标数据库连接</small>
           </div>
 
           <div class="form-group">
@@ -103,7 +122,7 @@
                     type="button" 
                     class="btn-link" 
                     @click="selectAllTables"
-                    :disabled="!formData.connection_id || availableTables.length === 0"
+                    :disabled="!formData.source_connection_id || availableTables.length === 0"
                   >
                     全选
                   </button>
@@ -123,8 +142,8 @@
                 <span>加载中...</span>
               </div>
 
-              <div v-else-if="!formData.connection_id" class="empty-state-compact">
-                <p>请先选择数据库连接</p>
+              <div v-else-if="!formData.source_connection_id" class="empty-state-compact">
+                <p>请先选择源数据库连接</p>
               </div>
 
               <div v-else-if="availableTables.length === 0" class="empty-state-compact">
@@ -316,7 +335,8 @@ const currentTableConfig = ref({
 })
 
 const formData = reactive({
-  connection_id: '',
+  source_connection_id: '',
+  target_connection_id: '',
   name: '',
   sync_mode: 'full',
   schedule: '',
@@ -332,7 +352,8 @@ const formData = reactive({
 onMounted(() => {
   if (props.config) {
     // Load existing config
-    formData.connection_id = props.config.connection_id
+    formData.source_connection_id = props.config.source_connection_id
+    formData.target_connection_id = props.config.target_connection_id
     formData.name = props.config.name
     formData.sync_mode = props.config.sync_mode
     formData.schedule = props.config.schedule || ''
@@ -354,14 +375,14 @@ onMounted(() => {
       })
     }
 
-    // Load tables for the connection
-    loadTablesForConnection(props.config.connection_id)
+    // Load tables for the source connection
+    loadTablesForConnection(props.config.source_connection_id)
   }
 })
 
-async function onConnectionChange() {
-  if (formData.connection_id) {
-    await loadTablesForConnection(formData.connection_id)
+async function onSourceConnectionChange() {
+  if (formData.source_connection_id) {
+    await loadTablesForConnection(formData.source_connection_id)
   } else {
     availableTables.value = []
   }
@@ -472,8 +493,18 @@ function deselectAllTables() {
 async function handleSubmit() {
   error.value = null
 
-  if (!formData.connection_id) {
-    error.value = '请选择数据库连接'
+  if (!formData.source_connection_id) {
+    error.value = '请选择源数据库连接'
+    return
+  }
+
+  if (!formData.target_connection_id) {
+    error.value = '请选择目标数据库连接'
+    return
+  }
+
+  if (formData.source_connection_id === formData.target_connection_id) {
+    error.value = '源连接和目标连接不能相同'
     return
   }
 
@@ -491,7 +522,8 @@ async function handleSubmit() {
   }))
 
   const configData = {
-    connection_id: formData.connection_id,
+    source_connection_id: formData.source_connection_id,
+    target_connection_id: formData.target_connection_id,
     name: formData.name,
     tables: tables,
     sync_mode: formData.sync_mode,

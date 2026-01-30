@@ -102,7 +102,7 @@ func (s *Server) Start() error {
 		WriteTimeout: s.config.Server.WriteTimeout,
 	}
 
-	s.logger.Infof("Starting server on %s", addr)
+	s.logger.Infof("Starting server on [http://%s]", addr)
 
 	// If sync system initialization failed during server creation, try again after starting the server
 	// This ensures migrations are run even if database was initially unavailable
@@ -956,9 +956,9 @@ func (s *Server) getRemoteTables(c *gin.Context) {
 		return
 	}
 
-	tables, err := s.syncManager.GetSyncManager().GetRemoteTables(c.Request.Context(), config.ConnectionID)
+	tables, err := s.syncManager.GetSyncManager().GetRemoteTables(c.Request.Context(), config.SourceConnectionID)
 	if err != nil {
-		s.logger.WithError(err).WithField("connection_id", config.ConnectionID).Error("Failed to get remote tables")
+		s.logger.WithError(err).WithField("connection_id", config.SourceConnectionID).Error("Failed to get remote tables")
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
@@ -998,10 +998,10 @@ func (s *Server) getRemoteTableSchema(c *gin.Context) {
 		return
 	}
 
-	schema, err := s.syncManager.GetSyncManager().GetRemoteTableSchema(c.Request.Context(), config.ConnectionID, tableName)
+	schema, err := s.syncManager.GetSyncManager().GetRemoteTableSchema(c.Request.Context(), config.SourceConnectionID, tableName)
 	if err != nil {
 		s.logger.WithError(err).WithFields(logrus.Fields{
-			"connection_id": config.ConnectionID,
+			"connection_id": config.SourceConnectionID,
 			"table":         tableName,
 		}).Error("Failed to get remote table schema")
 		c.JSON(http.StatusInternalServerError, gin.H{

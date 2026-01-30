@@ -6,9 +6,6 @@
         <div class="connection-info">
           {{ connection.config.host }}:{{ connection.config.port }} / {{ connection.config.database }}
         </div>
-        <div class="connection-local">
-          本地数据库: {{ connection.config.local_db_name }}
-        </div>
       </div>
       <span :class="['status-badge', statusClass]">
         {{ statusText }}

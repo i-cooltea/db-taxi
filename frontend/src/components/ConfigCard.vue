@@ -4,7 +4,14 @@
       <div>
         <div class="config-name">{{ config.name }}</div>
         <div class="config-connection">
-          连接: {{ connection?.config.name || 'Unknown' }}
+          <div class="connection-info">
+            <span class="connection-label">源:</span>
+            <span>{{ sourceConnection?.config.name || 'Unknown' }}</span>
+          </div>
+          <div class="connection-info">
+            <span class="connection-label">目标:</span>
+            <span>{{ targetConnection?.config.name || 'Unknown' }}</span>
+          </div>
         </div>
       </div>
       <span :class="['status-badge', statusClass]">
@@ -53,7 +60,11 @@ const props = defineProps({
     type: Object,
     required: true
   },
-  connection: {
+  sourceConnection: {
+    type: Object,
+    default: null
+  },
+  targetConnection: {
     type: Object,
     default: null
   }
@@ -113,6 +124,21 @@ const tableCount = computed(() =>
 .config-connection {
   font-size: 0.9rem;
   color: #666;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+
+.connection-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.connection-label {
+  font-weight: 500;
+  color: #667eea;
 }
 
 .status-badge {

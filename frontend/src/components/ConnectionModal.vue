@@ -56,19 +56,7 @@
             required
             placeholder="例如: myapp_production"
           >
-          <small>远程数据库的名称</small>
-        </div>
-
-        <div class="form-group">
-          <label for="local-db-name">本地数据库名称 *</label>
-          <input 
-            id="local-db-name" 
-            v-model="formData.local_db_name" 
-            type="text" 
-            required
-            placeholder="例如: myapp_local"
-          >
-          <small>数据将同步到此本地数据库（如不存在将自动创建）</small>
+          <small>数据库的名称</small>
         </div>
 
         <div class="form-row">
@@ -160,7 +148,6 @@ const formData = reactive({
   host: '',
   port: 3306,
   database: '',
-  local_db_name: '',
   username: '',
   password: '',
   ssl: false
@@ -220,7 +207,7 @@ async function handleSubmit() {
 
   // Validate required fields
   if (!formData.name || !formData.host || !formData.database || 
-      !formData.local_db_name || !formData.username || !formData.password) {
+      !formData.username || !formData.password) {
     error.value = '请填写所有必填字段'
     return
   }

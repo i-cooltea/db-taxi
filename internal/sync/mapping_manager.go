@@ -40,16 +40,15 @@ func (m *MappingManagerImpl) CreateDatabaseMapping(ctx context.Context, mapping 
 		return fmt.Errorf("remote connection not found: %w", err)
 	}
 
-	// Check if local database name is already used by another connection
-	connections, err := m.repo.GetConnections(ctx)
+	// Check if local database name is already used by another mapping
+	existingMappings, err := m.repo.GetDatabaseMappings(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get connections: %w", err)
+		return fmt.Errorf("failed to get existing database mappings: %w", err)
 	}
-
-	for _, conn := range connections {
-		if conn.LocalDBName == mapping.LocalDatabaseName && conn.ID != mapping.RemoteConnectionID {
+	for _, existing := range existingMappings {
+		if existing.LocalDatabaseName == mapping.LocalDatabaseName && existing.RemoteConnectionID != mapping.RemoteConnectionID {
 			return fmt.Errorf("local database name '%s' is already used by connection '%s'",
-				mapping.LocalDatabaseName, conn.Name)
+				mapping.LocalDatabaseName, existing.RemoteConnectionID)
 		}
 	}
 
@@ -59,16 +58,9 @@ func (m *MappingManagerImpl) CreateDatabaseMapping(ctx context.Context, mapping 
 		return fmt.Errorf("failed to create local database: %w", err)
 	}
 
-	// Update the connection with the local database name
-	conn, err := m.repo.GetConnection(ctx, mapping.RemoteConnectionID)
-	if err != nil {
-		return fmt.Errorf("failed to get connection: %w", err)
-	}
-
-	conn.LocalDBName = mapping.LocalDatabaseName
-	err = m.repo.UpdateConnection(ctx, mapping.RemoteConnectionID, conn)
-	if err != nil {
-		return fmt.Errorf("failed to update connection with local database mapping: %w", err)
+	// Persist mapping to database_mappings table
+	if err := m.repo.CreateDatabaseMapping(ctx, mapping); err != nil {
+		return fmt.Errorf("failed to save database mapping: %w", err)
 	}
 
 	m.logger.WithFields(logrus.Fields{
@@ -83,21 +75,9 @@ func (m *MappingManagerImpl) CreateDatabaseMapping(ctx context.Context, mapping 
 func (m *MappingManagerImpl) GetDatabaseMappings(ctx context.Context) ([]*DatabaseMapping, error) {
 	m.logger.Info("Getting all database mappings")
 
-	connections, err := m.repo.GetConnections(ctx)
+	mappings, err := m.repo.GetDatabaseMappings(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get connections: %w", err)
-	}
-
-	var mappings []*DatabaseMapping
-	for _, conn := range connections {
-		if conn.LocalDBName != "" {
-			mapping := &DatabaseMapping{
-				RemoteConnectionID: conn.ID,
-				LocalDatabaseName:  conn.LocalDBName,
-				CreatedAt:          conn.CreatedAt,
-			}
-			mappings = append(mappings, mapping)
-		}
+		return nil, fmt.Errorf("failed to get database mappings: %w", err)
 	}
 
 	m.logger.WithField("count", len(mappings)).Info("Retrieved database mappings")
@@ -161,13 +141,23 @@ func (m *MappingManagerImpl) ExportConfig(ctx context.Context) (*ConfigExport, e
 
 	// Get all sync configs
 	var allSyncConfigs []*SyncConfig
+	seenSyncConfigIDs := make(map[string]bool)
 	for _, conn := range connections {
 		configs, err := m.repo.GetSyncConfigs(ctx, conn.ID)
 		if err != nil {
 			m.logger.WithError(err).WithField("connection_id", conn.ID).Warn("Failed to get sync configs for connection")
 			continue
 		}
-		allSyncConfigs = append(allSyncConfigs, configs...)
+		for _, sc := range configs {
+			if sc == nil || sc.ID == "" {
+				continue
+			}
+			if seenSyncConfigIDs[sc.ID] {
+				continue
+			}
+			seenSyncConfigIDs[sc.ID] = true
+			allSyncConfigs = append(allSyncConfigs, sc)
+		}
 	}
 
 	export := &ConfigExport{
@@ -219,8 +209,8 @@ func (m *MappingManagerImpl) ImportConfig(ctx context.Context, config *ConfigExp
 
 		// Use transaction directly for connection creation
 		query := `
-			INSERT INTO connections (id, name, host, port, username, password, database_name, local_db_name, ` + "`ssl`" + `)
-			VALUES (:id, :name, :host, :port, :username, :password, :database, :local_db_name, :ssl)
+			INSERT INTO connections (id, name, host, port, username, password, database_name, ` + "`ssl`" + `)
+			VALUES (:id, :name, :host, :port, :username, :password, :database, :ssl)
 		`
 		_, err = tx.NamedExecContext(ctx, query, conn)
 		if err != nil {
@@ -229,8 +219,11 @@ func (m *MappingManagerImpl) ImportConfig(ctx context.Context, config *ConfigExp
 
 		// Update sync configs to use new connection ID
 		for _, syncConfig := range config.SyncConfigs {
-			if syncConfig.ConnectionID == originalID {
-				syncConfig.ConnectionID = conn.ID
+			if syncConfig.SourceConnectionID == originalID {
+				syncConfig.SourceConnectionID = conn.ID
+			}
+			if syncConfig.TargetConnectionID == originalID {
+				syncConfig.TargetConnectionID = conn.ID
 			}
 		}
 
@@ -259,10 +252,10 @@ func (m *MappingManagerImpl) ImportConfig(ctx context.Context, config *ConfigExp
 
 		// Use transaction directly for sync config creation
 		query := `
-			INSERT INTO sync_configs (id, connection_id, name, sync_mode, schedule, enabled, options)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
+			INSERT INTO sync_configs (id, source_connection_id, target_connection_id, name, sync_mode, schedule, enabled, options)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		`
-		_, err = tx.ExecContext(ctx, query, syncConfig.ID, syncConfig.ConnectionID, syncConfig.Name,
+		_, err = tx.ExecContext(ctx, query, syncConfig.ID, syncConfig.SourceConnectionID, syncConfig.TargetConnectionID, syncConfig.Name,
 			syncConfig.SyncMode, syncConfig.Schedule, syncConfig.Enabled, nil) // Simplified options for now
 		if err != nil {
 			return fmt.Errorf("failed to import sync config '%s': %w", syncConfig.Name, err)
@@ -313,7 +306,6 @@ func (m *MappingManagerImpl) ValidateConfig(ctx context.Context, config *ConfigE
 
 	// Validate connections
 	connectionIDs := make(map[string]bool)
-	localDBNames := make(map[string]string) // localDB -> connectionName
 
 	for _, conn := range config.Connections {
 		if conn.ID == "" {
@@ -340,15 +332,6 @@ func (m *MappingManagerImpl) ValidateConfig(ctx context.Context, config *ConfigE
 			return fmt.Errorf("duplicate connection ID: %s", conn.ID)
 		}
 		connectionIDs[conn.ID] = true
-
-		// Check for duplicate local database names
-		if conn.LocalDBName != "" {
-			if existingConn, exists := localDBNames[conn.LocalDBName]; exists {
-				return fmt.Errorf("local database name '%s' is used by both '%s' and '%s'",
-					conn.LocalDBName, existingConn, conn.Name)
-			}
-			localDBNames[conn.LocalDBName] = conn.Name
-		}
 	}
 
 	// Validate mappings reference valid connections
@@ -370,9 +353,13 @@ func (m *MappingManagerImpl) ValidateConfig(ctx context.Context, config *ConfigE
 		if syncConfig.Name == "" {
 			return fmt.Errorf("sync config name is required")
 		}
-		if !connectionIDs[syncConfig.ConnectionID] {
-			return fmt.Errorf("sync config '%s' references non-existent connection ID: %s",
-				syncConfig.Name, syncConfig.ConnectionID)
+		if !connectionIDs[syncConfig.SourceConnectionID] {
+			return fmt.Errorf("sync config '%s' references non-existent source connection ID: %s",
+				syncConfig.Name, syncConfig.SourceConnectionID)
+		}
+		if !connectionIDs[syncConfig.TargetConnectionID] {
+			return fmt.Errorf("sync config '%s' references non-existent target connection ID: %s",
+				syncConfig.Name, syncConfig.TargetConnectionID)
 		}
 
 		// Check for duplicate sync config IDs
@@ -515,13 +502,9 @@ func (m *MappingManagerImpl) resolveImportConflicts(ctx context.Context, config 
 
 	// Create maps for conflict detection
 	existingNames := make(map[string]bool)
-	existingLocalDBs := make(map[string]bool)
 
 	for _, conn := range existingConnections {
 		existingNames[conn.Name] = true
-		if conn.LocalDBName != "" {
-			existingLocalDBs[conn.LocalDBName] = true
-		}
 	}
 
 	// Resolve connection name conflicts
@@ -536,38 +519,22 @@ func (m *MappingManagerImpl) resolveImportConflicts(ctx context.Context, config 
 		}
 		existingNames[conn.Name] = true
 
-		// Resolve local database name conflicts
-		if conn.LocalDBName != "" {
-			originalLocalDB := conn.LocalDBName
-			counter = 1
-
-			for existingLocalDBs[conn.LocalDBName] {
-				conn.LocalDBName = fmt.Sprintf("%s_%d", originalLocalDB, counter)
-				counter++
-			}
-			existingLocalDBs[conn.LocalDBName] = true
-
-			// Update mappings to use new local database name
-			for _, mapping := range config.Mappings {
-				if mapping.RemoteConnectionID == conn.ID && mapping.LocalDatabaseName == originalLocalDB {
-					mapping.LocalDatabaseName = conn.LocalDBName
-				}
-			}
-		}
 	}
 
 	// Resolve sync config name conflicts within each connection
 	connectionSyncConfigs := make(map[string]map[string]bool)
 
 	for _, syncConfig := range config.SyncConfigs {
-		if connectionSyncConfigs[syncConfig.ConnectionID] == nil {
-			connectionSyncConfigs[syncConfig.ConnectionID] = make(map[string]bool)
+		// Use source_connection_id as the uniqueness scope (matches DB unique index)
+		scopeID := syncConfig.SourceConnectionID
+		if connectionSyncConfigs[scopeID] == nil {
+			connectionSyncConfigs[scopeID] = make(map[string]bool)
 
 			// Get existing sync configs for this connection
-			existingSyncConfigs, err := m.repo.GetSyncConfigs(ctx, syncConfig.ConnectionID)
+			existingSyncConfigs, err := m.repo.GetSyncConfigs(ctx, scopeID)
 			if err == nil {
 				for _, existing := range existingSyncConfigs {
-					connectionSyncConfigs[syncConfig.ConnectionID][existing.Name] = true
+					connectionSyncConfigs[scopeID][existing.Name] = true
 				}
 			}
 		}
@@ -575,11 +542,11 @@ func (m *MappingManagerImpl) resolveImportConflicts(ctx context.Context, config 
 		originalName := syncConfig.Name
 		counter := 1
 
-		for connectionSyncConfigs[syncConfig.ConnectionID][syncConfig.Name] {
+		for connectionSyncConfigs[scopeID][syncConfig.Name] {
 			syncConfig.Name = fmt.Sprintf("%s_%d", originalName, counter)
 			counter++
 		}
-		connectionSyncConfigs[syncConfig.ConnectionID][syncConfig.Name] = true
+		connectionSyncConfigs[scopeID][syncConfig.Name] = true
 	}
 
 	m.logger.Info("Import conflicts resolved successfully")
@@ -609,12 +576,7 @@ func (m *MappingManagerImpl) ValidateConfigIntegrity(ctx context.Context, config
 		if !exists {
 			return fmt.Errorf("mapping references non-existent connection: %s", mapping.RemoteConnectionID)
 		}
-
-		// Verify mapping consistency with connection
-		if conn.LocalDBName != "" && conn.LocalDBName != mapping.LocalDatabaseName {
-			return fmt.Errorf("mapping local database '%s' doesn't match connection local database '%s'",
-				mapping.LocalDatabaseName, conn.LocalDBName)
-		}
+		_ = conn // mapping->connection consistency is no longer derived from ConnectionConfig fields
 	}
 
 	// Check sync config and table mapping consistency
@@ -623,9 +585,13 @@ func (m *MappingManagerImpl) ValidateConfigIntegrity(ctx context.Context, config
 		syncConfigMap[syncConfig.ID] = syncConfig
 
 		// Verify connection exists
-		if _, exists := connectionMap[syncConfig.ConnectionID]; !exists {
-			return fmt.Errorf("sync config '%s' references non-existent connection: %s",
-				syncConfig.Name, syncConfig.ConnectionID)
+		if _, exists := connectionMap[syncConfig.SourceConnectionID]; !exists {
+			return fmt.Errorf("sync config '%s' references non-existent source connection: %s",
+				syncConfig.Name, syncConfig.SourceConnectionID)
+		}
+		if _, exists := connectionMap[syncConfig.TargetConnectionID]; !exists {
+			return fmt.Errorf("sync config '%s' references non-existent target connection: %s",
+				syncConfig.Name, syncConfig.TargetConnectionID)
 		}
 
 		// Validate table mappings
@@ -660,6 +626,7 @@ func (m *MappingManagerImpl) GetConfigurationSummary(ctx context.Context) (*Conf
 	var totalSyncConfigs, totalTableMappings int
 	var enabledSyncConfigs, enabledTableMappings int
 
+	seenSyncConfigIDs := make(map[string]bool)
 	for _, conn := range connections {
 		syncConfigs, err := m.repo.GetSyncConfigs(ctx, conn.ID)
 		if err != nil {
@@ -667,9 +634,12 @@ func (m *MappingManagerImpl) GetConfigurationSummary(ctx context.Context) (*Conf
 			continue
 		}
 
-		totalSyncConfigs += len(syncConfigs)
-
 		for _, syncConfig := range syncConfigs {
+			if syncConfig == nil || syncConfig.ID == "" || seenSyncConfigIDs[syncConfig.ID] {
+				continue
+			}
+			seenSyncConfigIDs[syncConfig.ID] = true
+			totalSyncConfigs++
 			if syncConfig.Enabled {
 				enabledSyncConfigs++
 			}
