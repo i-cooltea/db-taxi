@@ -371,7 +371,7 @@ func (e *DefaultSyncEngine) ValidateData(ctx context.Context, mapping *TableMapp
 		return fmt.Errorf("source/target database is required")
 	}
 
-	// Connect to source database using resolved database name
+	// Connect to source database
 	{
 		cc := *sourceConnConfig
 		cc.Database = sourceDBName
@@ -383,7 +383,7 @@ func (e *DefaultSyncEngine) ValidateData(ctx context.Context, mapping *TableMapp
 	}
 	defer sourceDB.Close()
 
-	// Connect to target database using resolved database name
+	// Connect to target database
 	{
 		cc := *targetConnConfig
 		cc.Database = targetDBName

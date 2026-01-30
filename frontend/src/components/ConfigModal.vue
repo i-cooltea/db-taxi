@@ -2,7 +2,7 @@
   <div class="modal" @click.self="$emit('close')">
     <div class="modal-content">
       <div class="modal-header">
-        <h2>{{ config ? '编辑同步配置' : '创建同步配置' }}</h2>
+        <h2>{{ config && config.id ? '编辑同步配置' : '创建同步配置' }}</h2>
         <span class="close" @click="$emit('close')">&times;</span>
       </div>
 

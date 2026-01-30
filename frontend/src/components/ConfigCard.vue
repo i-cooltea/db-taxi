@@ -5,12 +5,12 @@
         <div class="config-name">{{ config.name }}</div>
         <div class="config-connection">
           <div class="connection-info">
-            <span class="connection-label">源:</span>
-            <span>{{ sourceConnection?.config.name || 'Unknown' }}</span>
-          </div>
-          <div class="connection-info">
-            <span class="connection-label">目标:</span>
-            <span>{{ targetConnection?.config.name || 'Unknown' }}</span>
+            <span class="connection-label">连接:</span>
+            <span class="connection-main">
+              {{ sourceConnection?.config.name || 'Unknown' }}
+              <span class="connection-arrow">→</span>
+              {{ targetConnection?.config.name || 'Unknown' }}
+            </span>
           </div>
         </div>
       </div>
@@ -36,13 +36,16 @@
 
     <div class="config-actions">
       <button class="btn btn-success btn-small" @click="$emit('start', config)">
-        <Play :size="14" /> 启动同步
+        <Play :size="14" /> 同步
       </button>
-      <button class="btn btn-secondary btn-small" @click="$emit('view-tables', config)">
+      <button class="btn btn-info btn-small" @click="$emit('view-tables', config)">
         <List :size="14" /> 查看表
       </button>
       <button class="btn btn-secondary btn-small" @click="$emit('edit', config)">
         <Edit2 :size="14" /> 编辑
+      </button>
+      <button class="btn btn-secondary btn-small" @click="$emit('copy', config)">
+        <Copy :size="14" /> 复制
       </button>
       <button class="btn btn-danger btn-small" @click="$emit('delete', config)">
         <Trash2 :size="14" /> 删除
@@ -53,7 +56,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { Play, List, Edit2, Trash2 } from 'lucide-vue-next'
+import { Play, List, Edit2, Trash2, Copy } from 'lucide-vue-next'
 
 const props = defineProps({
   config: {
@@ -70,7 +73,7 @@ const props = defineProps({
   }
 })
 
-defineEmits(['edit', 'delete', 'start', 'view-tables'])
+defineEmits(['edit', 'delete', 'start', 'view-tables', 'copy'])
 
 const statusClass = computed(() => 
   props.config.enabled ? 'status-enabled' : 'status-disabled'
@@ -186,6 +189,18 @@ const tableCount = computed(() =>
 
 .detail-value {
   color: #333;
+}
+
+.connection-main {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connection-arrow {
+  margin: 0 0.4rem;
+  color: #999;
 }
 
 .badge {

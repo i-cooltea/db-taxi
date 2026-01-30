@@ -3,9 +3,6 @@
     <div class="connection-header">
       <div>
         <div class="connection-name">{{ connection.config.name }}</div>
-        <div class="connection-info">
-          {{ connection.config.host }}:{{ connection.config.port }}
-        </div>
       </div>
       <span :class="['status-badge', statusClass]">
         {{ statusText }}
@@ -26,10 +23,6 @@
       <div v-if="connection.status" class="detail-row">
         <span class="detail-label">延迟:</span>
         <span class="detail-value">{{ connection.status.latency_ms }}ms</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">创建时间:</span>
-        <span class="detail-value">{{ formatDate(connection.created_at) }}</span>
       </div>
     </div>
 
