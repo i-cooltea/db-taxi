@@ -140,11 +140,15 @@ func (m *mockSyncManager) GetSyncStatus(ctx context.Context, jobID string) (*syn
 	return nil, nil
 }
 
-func (m *mockSyncManager) GetRemoteTables(ctx context.Context, connectionID string) ([]string, error) {
+func (m *mockSyncManager) GetRemoteDatabases(ctx context.Context, connectionID string) ([]string, error) {
 	return []string{}, nil
 }
 
-func (m *mockSyncManager) GetRemoteTableSchema(ctx context.Context, connectionID, tableName string) (*sync.TableSchema, error) {
+func (m *mockSyncManager) GetRemoteTables(ctx context.Context, connectionID, database string) ([]string, error) {
+	return []string{}, nil
+}
+
+func (m *mockSyncManager) GetRemoteTableSchema(ctx context.Context, connectionID, database, tableName string) (*sync.TableSchema, error) {
 	return nil, nil
 }
 

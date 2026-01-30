@@ -2,7 +2,7 @@
   <div class="modal" @click.self="$emit('close')">
     <div class="modal-content">
       <div class="modal-header">
-        <h2>{{ config ? '编辑同步配置' : '创建同步配置' }}</h2>
+        <h2>{{ config && config.id ? '编辑同步配置' : '创建同步配置' }}</h2>
         <span class="close" @click="$emit('close')">&times;</span>
       </div>
 
@@ -32,15 +32,45 @@
       <form @submit.prevent="handleSubmit">
         <!-- Basic Configuration Tab -->
         <div v-show="activeTab === 'basic'" class="tab-content">
+          <div class="sync-visual">
+            <div class="sync-node">
+              <Database class="db-icon db-icon-source" :size="26" />
+              <div class="sync-node-text">
+                <div class="sync-node-main">
+                  {{ sourceConnection?.config.host || '源连接' }}
+                </div>
+                <div class="sync-node-sub">
+                  {{ formData.source_database || '请选择源数据库' }}
+                </div>
+              </div>
+            </div>
+
+            <div class="sync-arrow">
+              <ArrowRight :size="20" />
+            </div>
+
+            <div class="sync-node">
+              <Database class="db-icon db-icon-target" :size="26" />
+              <div class="sync-node-text">
+                <div class="sync-node-main">
+                  {{ targetConnection?.config.host || '目标' }}
+                </div>
+                <div class="sync-node-sub">
+                  {{ formData.target_database || '目标数据库' }}
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="form-group">
-            <label for="connection">选择连接 *</label>
+            <label for="source-connection">源连接（数据来源）*</label>
             <select 
-              id="connection" 
-              v-model="formData.connection_id" 
+              id="source-connection" 
+              v-model="formData.source_connection_id" 
               required
-              @change="onConnectionChange"
+              @change="onSourceConnectionChange"
             >
-              <option value="">请选择数据库连接</option>
+              <option value="">请选择源数据库连接</option>
               <option 
                 v-for="conn in connections" 
                 :key="conn.config.id"
@@ -49,7 +79,59 @@
                 {{ conn.config.name }} ({{ conn.config.host }}:{{ conn.config.port }})
               </option>
             </select>
-            <small>选择要同步的远程数据库连接</small>
+            <small>选择数据来源的数据库连接</small>
+          </div>
+
+          <div class="form-group">
+            <label for="source-database">源数据库 *</label>
+            <select
+              id="source-database"
+              v-model="formData.source_database"
+              required
+              :disabled="!formData.source_connection_id || loadingDatabases"
+              @change="onSourceDatabaseChange"
+            >
+              <option value="">
+                {{ loadingDatabases ? '加载数据库列表...' : '请选择源数据库' }}
+              </option>
+              <option v-for="db in availableDatabases" :key="db" :value="db">
+                {{ db }}
+              </option>
+            </select>
+            <small>选择要作为数据来源的数据库（选择源连接后会自动加载）</small>
+          </div>
+
+          <div class="form-group">
+            <label for="target-connection">目标连接（数据目标）*</label>
+            <select 
+              id="target-connection" 
+              v-model="formData.target_connection_id" 
+              required
+            >
+              <option value="">请选择目标数据库连接</option>
+              <option 
+                v-for="conn in connections" 
+                :key="conn.config.id"
+                :value="conn.config.id"
+              >
+                {{ conn.config.name }} ({{ conn.config.host }}:{{ conn.config.port }})
+              </option>
+            </select>
+            <small>选择数据同步到的目标数据库连接 </small>
+            <small>⚠️警告: 数据将会被覆盖 </small>
+          </div>
+
+          <div class="form-group">
+            <label for="target-database">目标数据库名称 *</label>
+            <input
+              id="target-database"
+              v-model="formData.target_database"
+              type="text"
+              required
+              placeholder="默认与源数据库同名，可修改"
+              @input="targetDatabaseTouched = true"
+            >
+            <small>默认与源数据库同名；可修改。若目标数据库不存在，将自动创建（不会报错）。</small>
           </div>
 
           <div class="form-group">
@@ -103,7 +185,7 @@
                     type="button" 
                     class="btn-link" 
                     @click="selectAllTables"
-                    :disabled="!formData.connection_id || availableTables.length === 0"
+                    :disabled="!formData.source_connection_id || !formData.source_database || availableTables.length === 0"
                   >
                     全选
                   </button>
@@ -123,8 +205,8 @@
                 <span>加载中...</span>
               </div>
 
-              <div v-else-if="!formData.connection_id" class="empty-state-compact">
-                <p>请先选择数据库连接</p>
+              <div v-else-if="!formData.source_connection_id || !formData.source_database" class="empty-state-compact">
+                <p>请先选择源连接与源数据库</p>
               </div>
 
               <div v-else-if="availableTables.length === 0" class="empty-state-compact">
@@ -286,7 +368,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onMounted } from 'vue'
+import { ref, reactive, watch, onMounted, computed } from 'vue'
+import { Database, ArrowRight } from 'lucide-vue-next'
 
 const props = defineProps({
   config: {
@@ -305,6 +388,8 @@ const activeTab = ref('basic')
 const error = ref(null)
 const saving = ref(false)
 const loadingTables = ref(false)
+const loadingDatabases = ref(false)
+const availableDatabases = ref([])
 const availableTables = ref([])
 const selectedTables = ref(new Map())
 const editingTable = ref(null)
@@ -316,7 +401,10 @@ const currentTableConfig = ref({
 })
 
 const formData = reactive({
-  connection_id: '',
+  source_connection_id: '',
+  target_connection_id: '',
+  source_database: '',
+  target_database: '',
   name: '',
   sync_mode: 'full',
   schedule: '',
@@ -329,10 +417,24 @@ const formData = reactive({
   }
 })
 
+const targetDatabaseTouched = ref(false)
+
+const sourceConnection = computed(() =>
+  props.connections.find(c => c.config.id === formData.source_connection_id)
+)
+
+const targetConnection = computed(() =>
+  props.connections.find(c => c.config.id === formData.target_connection_id)
+)
+
 onMounted(() => {
   if (props.config) {
     // Load existing config
-    formData.connection_id = props.config.connection_id
+    formData.source_connection_id = props.config.source_connection_id
+    formData.target_connection_id = props.config.target_connection_id
+    formData.source_database = props.config.source_database || ''
+    formData.target_database = props.config.target_database || ''
+    targetDatabaseTouched.value = !!formData.target_database && formData.target_database !== formData.source_database
     formData.name = props.config.name
     formData.sync_mode = props.config.sync_mode
     formData.schedule = props.config.schedule || ''
@@ -354,25 +456,73 @@ onMounted(() => {
       })
     }
 
-    // Load tables for the connection
-    loadTablesForConnection(props.config.connection_id)
+    // Load databases for source connection, then load tables for selected source database
+    loadDatabasesForConnection(props.config.source_connection_id).then(() => {
+      if (formData.source_database) {
+        loadTablesForConnection(props.config.source_connection_id, formData.source_database)
+      }
+    })
   }
 })
 
-async function onConnectionChange() {
-  if (formData.connection_id) {
-    await loadTablesForConnection(formData.connection_id)
+async function onSourceConnectionChange() {
+  if (formData.source_connection_id) {
+    // Reset selections when source connection changes
+    availableDatabases.value = []
+    availableTables.value = []
+    selectedTables.value.clear()
+    editingTable.value = null
+    formData.source_database = ''
+    if (!targetDatabaseTouched.value) {
+      formData.target_database = ''
+    }
+
+    await loadDatabasesForConnection(formData.source_connection_id)
+  } else {
+    availableDatabases.value = []
+    availableTables.value = []
+  }
+}
+
+async function onSourceDatabaseChange() {
+  if (formData.source_connection_id && formData.source_database) {
+    // default target database name to source database if user hasn't edited it
+    if (!targetDatabaseTouched.value) {
+      formData.target_database = formData.source_database
+    }
+    availableTables.value = []
+    selectedTables.value.clear()
+    editingTable.value = null
+    await loadTablesForConnection(formData.source_connection_id, formData.source_database)
   } else {
     availableTables.value = []
   }
 }
 
-async function loadTablesForConnection(connectionId) {
+async function loadDatabasesForConnection(connectionId) {
+  loadingDatabases.value = true
+  error.value = null
+  try {
+    const response = await fetch(`/api/sync/connections/${connectionId}/databases`)
+    const result = await response.json()
+    if (result.success) {
+      availableDatabases.value = result.data || []
+    } else {
+      throw new Error(result.error || 'Failed to load databases')
+    }
+  } catch (err) {
+    error.value = err.message
+  } finally {
+    loadingDatabases.value = false
+  }
+}
+
+async function loadTablesForConnection(connectionId, database) {
   loadingTables.value = true
   error.value = null
   
   try {
-    const response = await fetch(`/api/sync/connections/${connectionId}/tables`)
+    const response = await fetch(`/api/sync/connections/${connectionId}/tables?database=${encodeURIComponent(database)}`)
     const result = await response.json()
     
     if (result.success) {
@@ -472,8 +622,28 @@ function deselectAllTables() {
 async function handleSubmit() {
   error.value = null
 
-  if (!formData.connection_id) {
-    error.value = '请选择数据库连接'
+  if (!formData.source_connection_id) {
+    error.value = '请选择源数据库连接'
+    return
+  }
+
+  if (!formData.source_database) {
+    error.value = '请选择源数据库'
+    return
+  }
+
+  if (!formData.target_connection_id) {
+    error.value = '请选择目标数据库连接'
+    return
+  }
+
+  if (!formData.target_database) {
+    error.value = '请输入目标数据库名称'
+    return
+  }
+
+  if (formData.source_connection_id === formData.target_connection_id) {
+    error.value = '源连接和目标连接不能相同'
     return
   }
 
@@ -491,7 +661,10 @@ async function handleSubmit() {
   }))
 
   const configData = {
-    connection_id: formData.connection_id,
+    source_connection_id: formData.source_connection_id,
+    target_connection_id: formData.target_connection_id,
+    source_database: formData.source_database,
+    target_database: formData.target_database,
     name: formData.name,
     tables: tables,
     sync_mode: formData.sync_mode,
@@ -903,6 +1076,61 @@ async function handleSubmit() {
   gap: 1rem;
   justify-content: flex-end;
   margin-top: 2rem;
+}
+
+.sync-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0 1.25rem;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.sync-node {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.db-icon {
+  flex-shrink: 0;
+}
+
+.db-icon-source {
+  color: #16a34a;
+}
+
+.db-icon-target {
+  color: #2563eb;
+}
+
+.sync-node-text {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+
+.sync-node-main {
+  color: #111827;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sync-node-sub {
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.sync-arrow {
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .checkbox-label {

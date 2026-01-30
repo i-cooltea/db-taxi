@@ -136,13 +136,18 @@ func (m *MockSyncManagerService) GetSyncStatus(ctx context.Context, jobID string
 	return args.Get(0).(*sync.SyncJob), args.Error(1)
 }
 
-func (m *MockSyncManagerService) GetRemoteTables(ctx context.Context, connectionID string) ([]string, error) {
+func (m *MockSyncManagerService) GetRemoteDatabases(ctx context.Context, connectionID string) ([]string, error) {
 	args := m.Called(ctx, connectionID)
 	return args.Get(0).([]string), args.Error(1)
 }
 
-func (m *MockSyncManagerService) GetRemoteTableSchema(ctx context.Context, connectionID, tableName string) (*sync.TableSchema, error) {
-	args := m.Called(ctx, connectionID, tableName)
+func (m *MockSyncManagerService) GetRemoteTables(ctx context.Context, connectionID, database string) ([]string, error) {
+	args := m.Called(ctx, connectionID, database)
+	return args.Get(0).([]string), args.Error(1)
+}
+
+func (m *MockSyncManagerService) GetRemoteTableSchema(ctx context.Context, connectionID, database, tableName string) (*sync.TableSchema, error) {
+	args := m.Called(ctx, connectionID, database, tableName)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -253,10 +258,11 @@ func TestGetRemoteTables(t *testing.T) {
 	// Setup mock expectations
 	mockSyncMgr.On("GetSyncManager").Return(mockSyncMgrService)
 	mockSyncMgrService.On("GetSyncConfig", mock.Anything, "config-123").Return(&sync.SyncConfig{
-		ID:           "config-123",
-		ConnectionID: "conn-123",
+		ID:                 "config-123",
+		SourceConnectionID: "conn-123",
+		SourceDatabase:     "test_db",
 	}, nil)
-	mockSyncMgrService.On("GetRemoteTables", mock.Anything, "conn-123").Return([]string{"users", "orders", "products"}, nil)
+	mockSyncMgrService.On("GetRemoteTables", mock.Anything, "conn-123", "test_db").Return([]string{"users", "orders", "products"}, nil)
 
 	// Create request
 	req, _ := http.NewRequest("GET", "/api/sync/configs/config-123/tables", nil)

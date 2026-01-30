@@ -4,7 +4,14 @@
       <div>
         <div class="config-name">{{ config.name }}</div>
         <div class="config-connection">
-          连接: {{ connection?.config.name || 'Unknown' }}
+          <div class="connection-info">
+            <span class="connection-label">连接:</span>
+            <span class="connection-main">
+              {{ sourceConnection?.config.name || 'Unknown' }}
+              <span class="connection-arrow">→</span>
+              {{ targetConnection?.config.name || 'Unknown' }}
+            </span>
+          </div>
         </div>
       </div>
       <span :class="['status-badge', statusClass]">
@@ -29,13 +36,16 @@
 
     <div class="config-actions">
       <button class="btn btn-success btn-small" @click="$emit('start', config)">
-        <Play :size="14" /> 启动同步
+        <Play :size="14" /> 同步
       </button>
-      <button class="btn btn-secondary btn-small" @click="$emit('view-tables', config)">
+      <button class="btn btn-info btn-small" @click="$emit('view-tables', config)">
         <List :size="14" /> 查看表
       </button>
       <button class="btn btn-secondary btn-small" @click="$emit('edit', config)">
         <Edit2 :size="14" /> 编辑
+      </button>
+      <button class="btn btn-secondary btn-small" @click="$emit('copy', config)">
+        <Copy :size="14" /> 复制
       </button>
       <button class="btn btn-danger btn-small" @click="$emit('delete', config)">
         <Trash2 :size="14" /> 删除
@@ -46,20 +56,24 @@
 
 <script setup>
 import { computed } from 'vue'
-import { Play, List, Edit2, Trash2 } from 'lucide-vue-next'
+import { Play, List, Edit2, Trash2, Copy } from 'lucide-vue-next'
 
 const props = defineProps({
   config: {
     type: Object,
     required: true
   },
-  connection: {
+  sourceConnection: {
+    type: Object,
+    default: null
+  },
+  targetConnection: {
     type: Object,
     default: null
   }
 })
 
-defineEmits(['edit', 'delete', 'start', 'view-tables'])
+defineEmits(['edit', 'delete', 'start', 'view-tables', 'copy'])
 
 const statusClass = computed(() => 
   props.config.enabled ? 'status-enabled' : 'status-disabled'
@@ -113,6 +127,21 @@ const tableCount = computed(() =>
 .config-connection {
   font-size: 0.9rem;
   color: #666;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+
+.connection-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.connection-label {
+  font-weight: 500;
+  color: #667eea;
 }
 
 .status-badge {
@@ -160,6 +189,18 @@ const tableCount = computed(() =>
 
 .detail-value {
   color: #333;
+}
+
+.connection-main {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connection-arrow {
+  margin: 0 0.4rem;
+  color: #999;
 }
 
 .badge {

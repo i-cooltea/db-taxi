@@ -38,18 +38,20 @@
           v-for="config in store.configs"
           :key="config.id"
           :config="config"
-          :connection="getConnection(config.connection_id)"
+          :source-connection="getConnection(config.source_connection_id)"
+          :target-connection="getConnection(config.target_connection_id)"
           @edit="editConfig"
           @delete="deleteConfig"
           @start="startSync"
           @view-tables="viewTables"
+          @copy="copyConfig"
         />
       </div>
     </div>
 
     <ConfigModal
       v-if="showModal"
-      :config="editingConfig"
+      :config="activeConfig"
       :connections="store.connections"
       @close="closeModal"
       @save="saveConfig"
@@ -74,7 +76,8 @@ import TableMappingsModal from '../components/TableMappingsModal.vue'
 const store = useSyncStore()
 
 const showModal = ref(false)
-const editingConfig = ref(null)
+const editingConfig = ref(null) // null 表示创建模式，非空表示编辑已有配置
+const activeConfig = ref(null)  // 传给弹窗用于预填表单的数据（编辑或复制）
 const error = ref(null)
 const successMessage = ref(null)
 const showTablesModal = ref(false)
@@ -90,11 +93,27 @@ function getConnection(connectionId) {
 
 function showCreateModal() {
   editingConfig.value = null
+  activeConfig.value = null
   showModal.value = true
 }
 
 function editConfig(config) {
   editingConfig.value = config
+  activeConfig.value = config
+  showModal.value = true
+}
+
+function copyConfig(config) {
+  // 基于当前配置生成一份用于创建的新配置：
+  // - 去掉 id 等后端字段
+  // - 名称增加「副本」后缀，避免与原配置混淆
+  const { id, created_at, updated_at, ...rest } = config
+  activeConfig.value = {
+    ...rest,
+    name: `${config.name} - 副本`
+  }
+  // 保持 editingConfig 为 null，这样保存时走创建逻辑
+  editingConfig.value = null
   showModal.value = true
 }
 
