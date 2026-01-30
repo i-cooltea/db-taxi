@@ -60,11 +60,14 @@ func TestSyncManagerInterface(t *testing.T) {
 
 	ctx := context.Background()
 	config := &SyncConfig{
-		ID:           "sync-id",
-		ConnectionID: "conn-id",
-		Name:         "test-sync",
-		SyncMode:     SyncModeFull,
-		Enabled:      true,
+		ID:                 "sync-id",
+		SourceConnectionID: "source-conn-id",
+		TargetConnectionID: "target-conn-id",
+		SourceDatabase:     "source_db",
+		TargetDatabase:     "target_db",
+		Name:               "test-sync",
+		SyncMode:           SyncModeFull,
+		Enabled:            true,
 	}
 
 	// Test interface method signatures
@@ -73,7 +76,7 @@ func TestSyncManagerInterface(t *testing.T) {
 		t.Error("Expected mock to return error")
 	}
 
-	_, err = sm.GetSyncConfigs(ctx, "conn-id")
+	_, err = sm.GetSyncConfigs(ctx, "source-conn-id")
 	if err == nil {
 		t.Error("Expected mock to return error")
 	}
@@ -514,11 +517,15 @@ func (m *mockSyncManager) GetSyncStatus(ctx context.Context, jobID string) (*Syn
 	return nil, mockError("GetSyncStatus")
 }
 
-func (m *mockSyncManager) GetRemoteTables(ctx context.Context, connectionID string) ([]string, error) {
+func (m *mockSyncManager) GetRemoteDatabases(ctx context.Context, connectionID string) ([]string, error) {
+	return nil, mockError("GetRemoteDatabases")
+}
+
+func (m *mockSyncManager) GetRemoteTables(ctx context.Context, connectionID, database string) ([]string, error) {
 	return nil, mockError("GetRemoteTables")
 }
 
-func (m *mockSyncManager) GetRemoteTableSchema(ctx context.Context, connectionID, tableName string) (*TableSchema, error) {
+func (m *mockSyncManager) GetRemoteTableSchema(ctx context.Context, connectionID, database, tableName string) (*TableSchema, error) {
 	return nil, mockError("GetRemoteTableSchema")
 }
 

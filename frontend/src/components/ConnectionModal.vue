@@ -47,18 +47,6 @@
           </div>
         </div>
 
-        <div class="form-group">
-          <label for="database">数据库名称 *</label>
-          <input 
-            id="database" 
-            v-model="formData.database" 
-            type="text" 
-            required
-            placeholder="例如: myapp_production"
-          >
-          <small>数据库的名称</small>
-        </div>
-
         <div class="form-row">
           <div class="form-group">
             <label for="username">用户名 *</label>
@@ -147,6 +135,7 @@ const formData = reactive({
   name: '',
   host: '',
   port: 3306,
+  // database 字段保留给后端兼容使用，但不再在连接配置中展示或必填
   database: '',
   username: '',
   password: '',
@@ -205,8 +194,8 @@ async function handleSubmit() {
   error.value = null
   testResult.value = null
 
-  // Validate required fields
-  if (!formData.name || !formData.host || !formData.database || 
+  // Validate required fields（数据库名称不再在连接层面必填）
+  if (!formData.name || !formData.host || 
       !formData.username || !formData.password) {
     error.value = '请填写所有必填字段'
     return

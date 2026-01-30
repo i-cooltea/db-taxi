@@ -94,7 +94,44 @@ func (e *DefaultSyncEngine) SyncFull(ctx context.Context, job *SyncJob, mapping 
 		return fmt.Errorf("failed to get target connection config: %w", err)
 	}
 
+	// Determine source/target database names (prefer sync config; fallback to connection config for backward compatibility)
+	sourceDBName := syncConfig.SourceDatabase
+	if sourceDBName == "" {
+		sourceDBName = sourceConnConfig.Database
+	}
+	targetDBName := syncConfig.TargetDatabase
+	if targetDBName == "" {
+		targetDBName = targetConnConfig.Database
+	}
+	if targetDBName == "" {
+		// If still empty, default to source db name
+		targetDBName = sourceDBName
+	}
+	if sourceDBName == "" || targetDBName == "" {
+		return fmt.Errorf("source/target database is required")
+	}
+
+	// Ensure target database exists (auto-create if missing)
+	{
+		serverConn := *targetConnConfig
+		serverConn.Database = ""
+		adminDB, err := e.connectToRemote(&serverConn)
+		if err != nil {
+			return fmt.Errorf("failed to connect to target server: %w", err)
+		}
+		if err := e.ensureDatabaseExists(ctx, adminDB, targetDBName); err != nil {
+			adminDB.Close()
+			return fmt.Errorf("failed to ensure target database exists: %w", err)
+		}
+		adminDB.Close()
+	}
+
 	// Connect to source database
+	{
+		cc := *sourceConnConfig
+		cc.Database = sourceDBName
+		sourceConnConfig = &cc
+	}
 	sourceDB, err := e.connectToRemote(sourceConnConfig)
 	if err != nil {
 		return fmt.Errorf("failed to connect to source database: %w", err)
@@ -102,6 +139,11 @@ func (e *DefaultSyncEngine) SyncFull(ctx context.Context, job *SyncJob, mapping 
 	defer sourceDB.Close()
 
 	// Connect to target database
+	{
+		cc := *targetConnConfig
+		cc.Database = targetDBName
+		targetConnConfig = &cc
+	}
 	targetDB, err := e.connectToRemote(targetConnConfig)
 	if err != nil {
 		return fmt.Errorf("failed to connect to target database: %w", err)
@@ -115,12 +157,12 @@ func (e *DefaultSyncEngine) SyncFull(ctx context.Context, job *SyncJob, mapping 
 	}
 
 	// Create or recreate target table in target database
-	if err := e.createOrRecreateTargetTableInDB(ctx, targetDB, targetConnConfig.Database, mapping.TargetTable, schema); err != nil {
+	if err := e.createOrRecreateTargetTableInDB(ctx, targetDB, targetDBName, mapping.TargetTable, schema); err != nil {
 		return fmt.Errorf("failed to create target table: %w", err)
 	}
 
 	// Sync all data from source to target
-	if err := e.syncAllDataBetweenDBs(ctx, sourceDB, sourceConnConfig.Database, targetDB, targetConnConfig.Database, mapping, syncConfig.Options); err != nil {
+	if err := e.syncAllDataBetweenDBs(ctx, sourceDB, sourceDBName, targetDB, targetDBName, mapping, syncConfig.Options); err != nil {
 		return fmt.Errorf("failed to sync data: %w", err)
 	}
 
@@ -160,7 +202,43 @@ func (e *DefaultSyncEngine) SyncIncremental(ctx context.Context, job *SyncJob, m
 		return fmt.Errorf("failed to get target connection config: %w", err)
 	}
 
+	// Determine source/target database names (prefer sync config; fallback to connection config for backward compatibility)
+	sourceDBName := syncConfig.SourceDatabase
+	if sourceDBName == "" {
+		sourceDBName = sourceConnConfig.Database
+	}
+	targetDBName := syncConfig.TargetDatabase
+	if targetDBName == "" {
+		targetDBName = targetConnConfig.Database
+	}
+	if targetDBName == "" {
+		targetDBName = sourceDBName
+	}
+	if sourceDBName == "" || targetDBName == "" {
+		return fmt.Errorf("source/target database is required")
+	}
+
+	// Ensure target database exists (auto-create if missing)
+	{
+		serverConn := *targetConnConfig
+		serverConn.Database = ""
+		adminDB, err := e.connectToRemote(&serverConn)
+		if err != nil {
+			return fmt.Errorf("failed to connect to target server: %w", err)
+		}
+		if err := e.ensureDatabaseExists(ctx, adminDB, targetDBName); err != nil {
+			adminDB.Close()
+			return fmt.Errorf("failed to ensure target database exists: %w", err)
+		}
+		adminDB.Close()
+	}
+
 	// Connect to source database
+	{
+		cc := *sourceConnConfig
+		cc.Database = sourceDBName
+		sourceConnConfig = &cc
+	}
 	sourceDB, err := e.connectToRemote(sourceConnConfig)
 	if err != nil {
 		return fmt.Errorf("failed to connect to source database: %w", err)
@@ -168,6 +246,11 @@ func (e *DefaultSyncEngine) SyncIncremental(ctx context.Context, job *SyncJob, m
 	defer sourceDB.Close()
 
 	// Connect to target database
+	{
+		cc := *targetConnConfig
+		cc.Database = targetDBName
+		targetConnConfig = &cc
+	}
 	targetDB, err := e.connectToRemote(targetConnConfig)
 	if err != nil {
 		return fmt.Errorf("failed to connect to target database: %w", err)
@@ -211,7 +294,7 @@ func (e *DefaultSyncEngine) SyncIncremental(ctx context.Context, job *SyncJob, m
 	}
 
 	// Check if target table exists, create if not
-	if err := e.ensureTargetTableExistsInDB(ctx, targetDB, targetConnConfig.Database, mapping.TargetTable, schema); err != nil {
+	if err := e.ensureTargetTableExistsInDB(ctx, targetDB, targetDBName, mapping.TargetTable, schema); err != nil {
 		return fmt.Errorf("failed to ensure target table exists: %w", err)
 	}
 
@@ -219,9 +302,9 @@ func (e *DefaultSyncEngine) SyncIncremental(ctx context.Context, job *SyncJob, m
 	var syncedRows int64
 	switch changeType {
 	case "timestamp":
-		syncedRows, err = e.syncIncrementalByTimestampBetweenDBs(ctx, sourceDB, sourceConnConfig.Database, targetDB, targetConnConfig.Database, mapping, changeColumn, checkpoint, syncConfig.Options)
+		syncedRows, err = e.syncIncrementalByTimestampBetweenDBs(ctx, sourceDB, sourceDBName, targetDB, targetDBName, mapping, changeColumn, checkpoint, syncConfig.Options)
 	case "auto_increment":
-		syncedRows, err = e.syncIncrementalByIDBetweenDBs(ctx, sourceDB, sourceConnConfig.Database, targetDB, targetConnConfig.Database, mapping, changeColumn, checkpoint, syncConfig.Options)
+		syncedRows, err = e.syncIncrementalByIDBetweenDBs(ctx, sourceDB, sourceDBName, targetDB, targetDBName, mapping, changeColumn, checkpoint, syncConfig.Options)
 	default:
 		return fmt.Errorf("unsupported change tracking type: %s", changeType)
 	}
@@ -271,14 +354,41 @@ func (e *DefaultSyncEngine) ValidateData(ctx context.Context, mapping *TableMapp
 		return fmt.Errorf("failed to get target connection config: %w", err)
 	}
 
-	// Connect to source database
+	// Determine source/target database names (prefer sync config; fallback to connection config for backward compatibility)
+	sourceDBName := syncConfig.SourceDatabase
+	if sourceDBName == "" {
+		sourceDBName = sourceConnConfig.Database
+	}
+	targetDBName := syncConfig.TargetDatabase
+	if targetDBName == "" {
+		targetDBName = targetConnConfig.Database
+	}
+	if targetDBName == "" {
+		// If still empty, default to source db name
+		targetDBName = sourceDBName
+	}
+	if sourceDBName == "" || targetDBName == "" {
+		return fmt.Errorf("source/target database is required")
+	}
+
+	// Connect to source database using resolved database name
+	{
+		cc := *sourceConnConfig
+		cc.Database = sourceDBName
+		sourceConnConfig = &cc
+	}
 	sourceDB, err := e.connectToRemote(sourceConnConfig)
 	if err != nil {
 		return fmt.Errorf("failed to connect to source database: %w", err)
 	}
 	defer sourceDB.Close()
 
-	// Connect to target database
+	// Connect to target database using resolved database name
+	{
+		cc := *targetConnConfig
+		cc.Database = targetDBName
+		targetConnConfig = &cc
+	}
 	targetDB, err := e.connectToRemote(targetConnConfig)
 	if err != nil {
 		return fmt.Errorf("failed to connect to target database: %w", err)
@@ -286,7 +396,7 @@ func (e *DefaultSyncEngine) ValidateData(ctx context.Context, mapping *TableMapp
 	defer targetDB.Close()
 
 	// Validate row counts between source and target
-	sourceCountQuery := fmt.Sprintf("SELECT COUNT(*) FROM `%s`.`%s`", sourceConnConfig.Database, mapping.SourceTable)
+	sourceCountQuery := fmt.Sprintf("SELECT COUNT(*) FROM `%s`.`%s`", sourceDBName, mapping.SourceTable)
 	if mapping.WhereClause != "" {
 		sourceCountQuery += fmt.Sprintf(" WHERE %s", mapping.WhereClause)
 	}
@@ -295,7 +405,7 @@ func (e *DefaultSyncEngine) ValidateData(ctx context.Context, mapping *TableMapp
 		return fmt.Errorf("failed to get source row count: %w", err)
 	}
 
-	targetCountQuery := fmt.Sprintf("SELECT COUNT(*) FROM `%s`.`%s`", targetConnConfig.Database, mapping.TargetTable)
+	targetCountQuery := fmt.Sprintf("SELECT COUNT(*) FROM `%s`.`%s`", targetDBName, mapping.TargetTable)
 	var targetCount int64
 	if err := targetDB.GetContext(ctx, &targetCount, targetCountQuery); err != nil {
 		return fmt.Errorf("failed to get target row count: %w", err)

@@ -76,6 +76,8 @@ type SyncConfig struct {
 	ID                 string          `json:"id" db:"id"`
 	SourceConnectionID string          `json:"source_connection_id" db:"source_connection_id"`
 	TargetConnectionID string          `json:"target_connection_id" db:"target_connection_id"`
+	SourceDatabase     string          `json:"source_database" db:"source_database"`
+	TargetDatabase     string          `json:"target_database" db:"target_database"`
 	Name               string          `json:"name" db:"name"`
 	Tables             []*TableMapping `json:"tables"`
 	SyncMode           SyncMode        `json:"sync_mode" db:"sync_mode"`

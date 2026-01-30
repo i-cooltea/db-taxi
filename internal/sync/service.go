@@ -93,11 +93,6 @@ func (s *ConnectionManagerService) AddConnection(ctx context.Context, config *Co
 		return nil, fmt.Errorf("invalid connection config: %w", err)
 	}
 
-	// Ensure the database exists, create it if it doesn't
-	if err := s.ensureRemoteDatabaseExists(ctx, config); err != nil {
-		return nil, fmt.Errorf("failed to ensure database exists: %w", err)
-	}
-
 	// Test the remote connection before saving
 	status, err := s.testRemoteConnection(ctx, config)
 	if err != nil {
@@ -682,9 +677,6 @@ func (s *ConnectionManagerService) validateConnectionConfig(config *ConnectionCo
 	if config.Username == "" {
 		return fmt.Errorf("username is required")
 	}
-	if config.Database == "" {
-		return fmt.Errorf("database name is required")
-	}
 
 	return nil
 }
@@ -758,6 +750,11 @@ func (s *SyncManagerService) CreateSyncConfig(ctx context.Context, config *SyncC
 		config.ID = uuid.New().String()
 	}
 
+	// Default target database to source database when omitted
+	if config.TargetDatabase == "" {
+		config.TargetDatabase = config.SourceDatabase
+	}
+
 	// Set timestamps
 	now := time.Now()
 	config.CreatedAt = now
@@ -815,6 +812,11 @@ func (s *SyncManagerService) GetSyncConfig(ctx context.Context, id string) (*Syn
 }
 
 func (s *SyncManagerService) UpdateSyncConfig(ctx context.Context, id string, config *SyncConfig) error {
+	// Default target database to source database when omitted
+	if config.TargetDatabase == "" {
+		config.TargetDatabase = config.SourceDatabase
+	}
+
 	// Validate configuration
 	if err := s.validateSyncConfig(config); err != nil {
 		return fmt.Errorf("invalid sync config: %w", err)
@@ -965,6 +967,13 @@ func (s *SyncManagerService) validateSyncConfig(config *SyncConfig) error {
 	if len(config.Tables) == 0 {
 		return fmt.Errorf("at least one table mapping is required")
 	}
+	if config.SourceDatabase == "" {
+		return fmt.Errorf("source database is required")
+	}
+	if config.TargetDatabase == "" {
+		// default target database to source database if not specified
+		config.TargetDatabase = config.SourceDatabase
+	}
 
 	// Validate table mappings
 	for i, mapping := range config.Tables {
@@ -988,14 +997,53 @@ func (s *SyncManagerService) validateSyncConfig(config *SyncConfig) error {
 	return nil
 }
 
-// GetRemoteTables retrieves the list of tables from a remote database connection
-// Requirement 3.1: Browse remote database and display available tables
-func (s *SyncManagerService) GetRemoteTables(ctx context.Context, connectionID string) ([]string, error) {
+// GetRemoteDatabases retrieves the list of databases from a remote MySQL server (by connection)
+func (s *SyncManagerService) GetRemoteDatabases(ctx context.Context, connectionID string) ([]string, error) {
 	// Get connection configuration
 	connectionConfig, err := s.repo.GetConnection(ctx, connectionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get connection config: %w", err)
 	}
+
+	// Connect to server without specifying database
+	dsn, err := s.buildRemoteDSNWithDB(connectionConfig, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to build DSN: %w", err)
+	}
+
+	db, err := sqlx.Open("mysql", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open connection: %w", err)
+	}
+	defer db.Close()
+
+	query := `
+		SELECT SCHEMA_NAME
+		FROM INFORMATION_SCHEMA.SCHEMATA
+		WHERE SCHEMA_NAME NOT IN ('information_schema', 'performance_schema', 'mysql', 'sys')
+		ORDER BY SCHEMA_NAME
+	`
+	var databases []string
+	if err := db.SelectContext(ctx, &databases, query); err != nil {
+		return nil, fmt.Errorf("failed to query remote databases: %w", err)
+	}
+
+	return databases, nil
+}
+
+// GetRemoteTables retrieves the list of tables from a remote database connection
+// Requirement 3.1: Browse remote database and display available tables
+func (s *SyncManagerService) GetRemoteTables(ctx context.Context, connectionID, database string) ([]string, error) {
+	// Get connection configuration
+	connectionConfig, err := s.repo.GetConnection(ctx, connectionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get connection config: %w", err)
+	}
+
+	// Use selected database for this request (connection config may not carry database anymore)
+	cc := *connectionConfig
+	cc.Database = database
+	connectionConfig = &cc
 
 	// Create connection to remote database
 	db, err := s.createRemoteConnection(connectionConfig)
@@ -1007,7 +1055,7 @@ func (s *SyncManagerService) GetRemoteTables(ctx context.Context, connectionID s
 	// Query for table names
 	query := "SELECT table_name FROM information_schema.tables WHERE table_schema = ? AND table_type = 'BASE TABLE' ORDER BY table_name"
 	var tables []string
-	err = db.SelectContext(ctx, &tables, query, connectionConfig.Database)
+	err = db.SelectContext(ctx, &tables, query, database)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query remote tables: %w", err)
 	}
@@ -1022,12 +1070,16 @@ func (s *SyncManagerService) GetRemoteTables(ctx context.Context, connectionID s
 
 // GetRemoteTableSchema retrieves the schema information for a specific table
 // Supports requirement 3.1: Browse remote database structure
-func (s *SyncManagerService) GetRemoteTableSchema(ctx context.Context, connectionID, tableName string) (*TableSchema, error) {
+func (s *SyncManagerService) GetRemoteTableSchema(ctx context.Context, connectionID, database, tableName string) (*TableSchema, error) {
 	// Get connection configuration
 	connectionConfig, err := s.repo.GetConnection(ctx, connectionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get connection config: %w", err)
 	}
+
+	cc := *connectionConfig
+	cc.Database = database
+	connectionConfig = &cc
 
 	// Create connection to remote database
 	db, err := s.createRemoteConnection(connectionConfig)
@@ -1410,12 +1462,17 @@ func (s *SyncManagerService) createRemoteConnection(config *ConnectionConfig) (*
 
 // buildRemoteDSN builds a MySQL DSN for remote connection
 func (s *SyncManagerService) buildRemoteDSN(config *ConnectionConfig) (string, error) {
+	return s.buildRemoteDSNWithDB(config, config.Database)
+}
+
+// buildRemoteDSNWithDB builds a MySQL DSN for remote connection with optional database name
+func (s *SyncManagerService) buildRemoteDSNWithDB(config *ConnectionConfig, dbName string) (string, error) {
 	mysqlConfig := mysql.Config{
 		User:                 config.Username,
 		Passwd:               config.Password,
 		Net:                  "tcp",
 		Addr:                 fmt.Sprintf("%s:%d", config.Host, config.Port),
-		DBName:               config.Database,
+		DBName:               dbName,
 		Timeout:              10 * time.Second,
 		ReadTimeout:          30 * time.Second,
 		WriteTimeout:         30 * time.Second,

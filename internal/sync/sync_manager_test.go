@@ -22,7 +22,7 @@ func TestSyncManagerService_NewMethods(t *testing.T) {
 
 	// Test GetRemoteTables
 	t.Run("GetRemoteTables", func(t *testing.T) {
-		_, err := syncManager.GetRemoteTables(ctx, "test-connection-id")
+		_, err := syncManager.GetRemoteTables(ctx, "test-connection-id", "test_db")
 		if err == nil {
 			t.Error("Expected error from mock repository")
 		}
@@ -30,7 +30,7 @@ func TestSyncManagerService_NewMethods(t *testing.T) {
 
 	// Test GetRemoteTableSchema
 	t.Run("GetRemoteTableSchema", func(t *testing.T) {
-		_, err := syncManager.GetRemoteTableSchema(ctx, "test-connection-id", "test-table")
+		_, err := syncManager.GetRemoteTableSchema(ctx, "test-connection-id", "test_db", "test-table")
 		if err == nil {
 			t.Error("Expected error from mock repository")
 		}
@@ -194,11 +194,14 @@ func TestSyncManagerService_EnhancedValidation(t *testing.T) {
 		{
 			name: "valid config",
 			config: &SyncConfig{
-				ID:           uuid.New().String(),
-				ConnectionID: uuid.New().String(),
-				Name:         "test-sync",
-				SyncMode:     SyncModeFull,
-				Enabled:      true,
+				ID:                 uuid.New().String(),
+				SourceConnectionID: uuid.New().String(),
+				TargetConnectionID: uuid.New().String(),
+				SourceDatabase:     "source_db",
+				TargetDatabase:     "target_db",
+				Name:               "test-sync",
+				SyncMode:           SyncModeFull,
+				Enabled:            true,
 				Tables: []*TableMapping{
 					{
 						SourceTable: "source_table",
@@ -213,11 +216,14 @@ func TestSyncManagerService_EnhancedValidation(t *testing.T) {
 		{
 			name: "invalid sync mode",
 			config: &SyncConfig{
-				ID:           uuid.New().String(),
-				ConnectionID: uuid.New().String(),
-				Name:         "test-sync",
-				SyncMode:     "invalid_mode",
-				Enabled:      true,
+				ID:                 uuid.New().String(),
+				SourceConnectionID: uuid.New().String(),
+				TargetConnectionID: uuid.New().String(),
+				SourceDatabase:     "source_db",
+				TargetDatabase:     "target_db",
+				Name:               "test-sync",
+				SyncMode:           "invalid_mode",
+				Enabled:            true,
 				Tables: []*TableMapping{
 					{
 						SourceTable: "source_table",
@@ -232,11 +238,14 @@ func TestSyncManagerService_EnhancedValidation(t *testing.T) {
 		{
 			name: "invalid table mapping sync mode",
 			config: &SyncConfig{
-				ID:           uuid.New().String(),
-				ConnectionID: uuid.New().String(),
-				Name:         "test-sync",
-				SyncMode:     SyncModeFull,
-				Enabled:      true,
+				ID:                 uuid.New().String(),
+				SourceConnectionID: uuid.New().String(),
+				TargetConnectionID: uuid.New().String(),
+				SourceDatabase:     "source_db",
+				TargetDatabase:     "target_db",
+				Name:               "test-sync",
+				SyncMode:           SyncModeFull,
+				Enabled:            true,
 				Tables: []*TableMapping{
 					{
 						SourceTable: "source_table",

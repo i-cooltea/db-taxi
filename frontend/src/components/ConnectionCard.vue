@@ -4,7 +4,7 @@
       <div>
         <div class="connection-name">{{ connection.config.name }}</div>
         <div class="connection-info">
-          {{ connection.config.host }}:{{ connection.config.port }} / {{ connection.config.database }}
+          {{ connection.config.host }}:{{ connection.config.port }}
         </div>
       </div>
       <span :class="['status-badge', statusClass]">

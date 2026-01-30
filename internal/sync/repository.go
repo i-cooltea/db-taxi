@@ -147,11 +147,11 @@ func (r *MySQLRepository) CreateSyncConfig(ctx context.Context, config *SyncConf
 	}
 
 	query := `
-		INSERT INTO sync_configs (id, source_connection_id, target_connection_id, name, sync_mode, schedule, enabled, options)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO sync_configs (id, source_connection_id, target_connection_id, source_database, target_database, name, sync_mode, schedule, enabled, options)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
-	_, err = r.db.ExecContext(ctx, query, config.ID, config.SourceConnectionID, config.TargetConnectionID, config.Name,
-		config.SyncMode, config.Schedule, config.Enabled, optionsJSON)
+	_, err = r.db.ExecContext(ctx, query, config.ID, config.SourceConnectionID, config.TargetConnectionID, config.SourceDatabase, config.TargetDatabase,
+		config.Name, config.SyncMode, config.Schedule, config.Enabled, optionsJSON)
 	if err != nil {
 		r.logger.WithError(err).Error("Failed to create sync config")
 		return fmt.Errorf("failed to create sync config: %w", err)
@@ -163,10 +163,10 @@ func (r *MySQLRepository) GetSyncConfig(ctx context.Context, id string) (*SyncCo
 	var config SyncConfig
 	var optionsJSON sql.NullString
 
-	query := `SELECT id, source_connection_id, target_connection_id, name, sync_mode, schedule, enabled, options, created_at, updated_at 
+	query := `SELECT id, source_connection_id, target_connection_id, source_database, target_database, name, sync_mode, schedule, enabled, options, created_at, updated_at 
 	          FROM sync_configs WHERE id = ?`
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&config.ID, &config.SourceConnectionID, &config.TargetConnectionID, &config.Name, &config.SyncMode,
+		&config.ID, &config.SourceConnectionID, &config.TargetConnectionID, &config.SourceDatabase, &config.TargetDatabase, &config.Name, &config.SyncMode,
 		&config.Schedule, &config.Enabled, &optionsJSON, &config.CreatedAt, &config.UpdatedAt,
 	)
 	if err != nil {
@@ -200,7 +200,7 @@ func (r *MySQLRepository) GetSyncConfig(ctx context.Context, id string) (*SyncCo
 
 func (r *MySQLRepository) GetSyncConfigs(ctx context.Context, connectionID string) ([]*SyncConfig, error) {
 	var configs []*SyncConfig
-	query := `SELECT id, source_connection_id, target_connection_id, name, sync_mode, schedule, enabled, options, created_at, updated_at 
+	query := `SELECT id, source_connection_id, target_connection_id, source_database, target_database, name, sync_mode, schedule, enabled, options, created_at, updated_at 
 	          FROM sync_configs WHERE source_connection_id = ? OR target_connection_id = ? ORDER BY created_at DESC`
 
 	rows, err := r.db.QueryContext(ctx, query, connectionID, connectionID)
@@ -214,7 +214,7 @@ func (r *MySQLRepository) GetSyncConfigs(ctx context.Context, connectionID strin
 		var config SyncConfig
 		var optionsJSON sql.NullString
 
-		err := rows.Scan(&config.ID, &config.SourceConnectionID, &config.TargetConnectionID, &config.Name, &config.SyncMode,
+		err := rows.Scan(&config.ID, &config.SourceConnectionID, &config.TargetConnectionID, &config.SourceDatabase, &config.TargetDatabase, &config.Name, &config.SyncMode,
 			&config.Schedule, &config.Enabled, &optionsJSON, &config.CreatedAt, &config.UpdatedAt)
 		if err != nil {
 			r.logger.WithError(err).Error("Failed to scan sync config")
@@ -258,10 +258,10 @@ func (r *MySQLRepository) UpdateSyncConfig(ctx context.Context, id string, confi
 
 	query := `
 		UPDATE sync_configs 
-		SET source_connection_id = ?, target_connection_id = ?, name = ?, sync_mode = ?, schedule = ?, enabled = ?, options = ?, updated_at = CURRENT_TIMESTAMP
+		SET source_connection_id = ?, target_connection_id = ?, source_database = ?, target_database = ?, name = ?, sync_mode = ?, schedule = ?, enabled = ?, options = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
 	`
-	result, err := r.db.ExecContext(ctx, query, config.SourceConnectionID, config.TargetConnectionID, config.Name, config.SyncMode,
+	result, err := r.db.ExecContext(ctx, query, config.SourceConnectionID, config.TargetConnectionID, config.SourceDatabase, config.TargetDatabase, config.Name, config.SyncMode,
 		config.Schedule, config.Enabled, optionsJSON, id)
 	if err != nil {
 		r.logger.WithError(err).WithField("id", id).Error("Failed to update sync config")

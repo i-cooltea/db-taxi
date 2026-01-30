@@ -57,13 +57,16 @@ type SyncManager interface {
 	// GetSyncStatus returns the status of a sync job
 	GetSyncStatus(ctx context.Context, jobID string) (*SyncJob, error)
 
+	// GetRemoteDatabases retrieves the list of databases from a remote MySQL server (by connection)
+	GetRemoteDatabases(ctx context.Context, connectionID string) ([]string, error)
+
 	// GetRemoteTables retrieves the list of tables from a remote database connection
 	// Requirement 3.1: Browse remote database and display available tables
-	GetRemoteTables(ctx context.Context, connectionID string) ([]string, error)
+	GetRemoteTables(ctx context.Context, connectionID, database string) ([]string, error)
 
 	// GetRemoteTableSchema retrieves the schema information for a specific table
 	// Supports requirement 3.1: Browse remote database structure
-	GetRemoteTableSchema(ctx context.Context, connectionID, tableName string) (*TableSchema, error)
+	GetRemoteTableSchema(ctx context.Context, connectionID, database, tableName string) (*TableSchema, error)
 
 	// AddTableMapping adds a new table mapping to an existing sync configuration
 	// Requirement 3.2: Select tables for synchronization and save configuration
