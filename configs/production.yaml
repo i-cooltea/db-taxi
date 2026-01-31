@@ -1,0 +1,55 @@
+# Production configuration
+server:
+  port: 8080
+  host: "0.0.0.0"
+  read_timeout: "30s"
+  write_timeout: "30s"
+  enable_https: false
+  #  cert_file: "/etc/ssl/certs/db-taxi.crt"
+  #  key_file: "/etc/ssl/private/db-taxi.key"
+
+database:
+  host: "mysql-server"
+  port: 3306
+  username: "db_user"
+  password: "${DB_PASSWORD}"  # Use environment variable
+  database: "production_db"
+  ssl: true
+  max_open_conns: 50
+  max_idle_conns: 10
+  conn_max_lifetime: "10m"
+  query_timeout: "60s"
+
+security:
+  session_timeout: "15m"
+  read_only_mode: true  # Production read-only mode
+  enable_audit: true
+
+logging:
+  level: "info"
+  format: "json"
+  output: "/var/log/db-taxi/app.log"
+  max_size: 100
+  max_backups: 5
+  max_age: 30
+
+# Sync system configuration
+sync:
+  enabled: true
+  max_concurrency: 10
+  batch_size: 2000
+  retry_attempts: 3
+  retry_delay: "30s"
+  job_timeout: "2h"
+  cleanup_age: "24h"
+  enable_compression: true
+  default_conflict_resolution: "overwrite"
+  
+  # Performance tuning
+  connection_pool_size: 20
+  max_memory_usage: "1GB"
+  enable_metrics: true
+  
+  # Security
+  require_ssl_for_remote: true
+  allowed_remote_hosts: []  # Empty means allow all, or specify whitelist

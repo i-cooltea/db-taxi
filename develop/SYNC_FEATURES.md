@@ -40,7 +40,7 @@ sync:
   retry_attempts: 3
   retry_delay: "30s"
   job_timeout: "1h"
-  cleanup_age: "30d"
+  cleanup_age: "720h"
 ```
 
 ## Database Setup
