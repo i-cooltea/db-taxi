@@ -37,7 +37,7 @@ services:
       - DBT_SYNC_RETRY_ATTEMPTS=${SYNC_RETRY_ATTEMPTS:-3}
       - DBT_SYNC_RETRY_DELAY=${SYNC_RETRY_DELAY:-30s}
       - DBT_SYNC_JOB_TIMEOUT=${SYNC_JOB_TIMEOUT:-1h}
-      - DBT_SYNC_CLEANUP_AGE=${SYNC_CLEANUP_AGE:-30d}
+      - DBT_SYNC_CLEANUP_AGE=${SYNC_CLEANUP_AGE:-720h}
       
     volumes:
       - ./configs/production.yaml:/app/config.yaml:ro

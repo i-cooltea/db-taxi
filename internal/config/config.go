@@ -198,5 +198,5 @@ func setDefaults() {
 	viper.SetDefault("sync.retry_attempts", 3)
 	viper.SetDefault("sync.retry_delay", "30s")
 	viper.SetDefault("sync.job_timeout", "1h")
-	viper.SetDefault("sync.cleanup_age", "30d")
+	viper.SetDefault("sync.cleanup_age", "720h")
 }

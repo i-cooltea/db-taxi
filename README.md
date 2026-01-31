@@ -343,7 +343,7 @@ db-taxi/
 - `sync.retry_attempts` - 重试次数（默认：3）
 - `sync.retry_delay` - 重试延迟时间（默认：30s）
 - `sync.job_timeout` - 任务超时时间（默认：1h）
-- `sync.cleanup_age` - 历史记录清理时间（默认：30d）
+- `sync.cleanup_age` - 历史记录清理时间（默认：720h ）
 
 ## 开发
 
