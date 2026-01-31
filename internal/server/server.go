@@ -102,7 +102,7 @@ func (s *Server) Start() error {
 		WriteTimeout: s.config.Server.WriteTimeout,
 	}
 
-	s.logger.Infof("Starting server on %s", addr)
+	s.logger.Infof("Starting server on [http://%s]", addr)
 
 	// If sync system initialization failed during server creation, try again after starting the server
 	// This ensures migrations are run even if database was initially unavailable
@@ -176,6 +176,7 @@ func (s *Server) registerRoutes() {
 					connections.PUT("/:id", s.updateSyncConnection)
 					connections.DELETE("/:id", s.deleteSyncConnection)
 					connections.POST("/:id/test", s.testSyncConnection)
+					connections.GET("/:id/databases", s.getConnectionDatabases)
 					connections.GET("/:id/tables", s.getConnectionTables)
 				}
 
@@ -757,7 +758,16 @@ func (s *Server) getConnectionTables(c *gin.Context) {
 	}
 
 	connectionID := c.Param("id")
-	tables, err := s.syncManager.GetSyncManager().GetRemoteTables(c.Request.Context(), connectionID)
+	database := c.Query("database")
+	if database == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "database parameter is required",
+		})
+		return
+	}
+
+	tables, err := s.syncManager.GetSyncManager().GetRemoteTables(c.Request.Context(), connectionID, database)
 	if err != nil {
 		s.logger.WithError(err).WithField("connection_id", connectionID).Error("Failed to get connection tables")
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -772,6 +782,35 @@ func (s *Server) getConnectionTables(c *gin.Context) {
 		"data":    tables,
 		"meta": gin.H{
 			"total": len(tables),
+		},
+	})
+}
+
+func (s *Server) getConnectionDatabases(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	connectionID := c.Param("id")
+	databases, err := s.syncManager.GetSyncManager().GetRemoteDatabases(c.Request.Context(), connectionID)
+	if err != nil {
+		s.logger.WithError(err).WithField("connection_id", connectionID).Error("Failed to get connection databases")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    databases,
+		"meta": gin.H{
+			"total": len(databases),
 		},
 	})
 }
@@ -956,9 +995,9 @@ func (s *Server) getRemoteTables(c *gin.Context) {
 		return
 	}
 
-	tables, err := s.syncManager.GetSyncManager().GetRemoteTables(c.Request.Context(), config.ConnectionID)
+	tables, err := s.syncManager.GetSyncManager().GetRemoteTables(c.Request.Context(), config.SourceConnectionID, config.SourceDatabase)
 	if err != nil {
-		s.logger.WithError(err).WithField("connection_id", config.ConnectionID).Error("Failed to get remote tables")
+		s.logger.WithError(err).WithField("connection_id", config.SourceConnectionID).Error("Failed to get remote tables")
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
@@ -998,10 +1037,10 @@ func (s *Server) getRemoteTableSchema(c *gin.Context) {
 		return
 	}
 
-	schema, err := s.syncManager.GetSyncManager().GetRemoteTableSchema(c.Request.Context(), config.ConnectionID, tableName)
+	schema, err := s.syncManager.GetSyncManager().GetRemoteTableSchema(c.Request.Context(), config.SourceConnectionID, config.SourceDatabase, tableName)
 	if err != nil {
 		s.logger.WithError(err).WithFields(logrus.Fields{
-			"connection_id": config.ConnectionID,
+			"connection_id": config.SourceConnectionID,
 			"table":         tableName,
 		}).Error("Failed to get remote table schema")
 		c.JSON(http.StatusInternalServerError, gin.H{

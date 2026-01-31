@@ -45,17 +45,16 @@ const (
 
 // ConnectionConfig represents a remote database connection configuration
 type ConnectionConfig struct {
-	ID          string    `json:"id" db:"id"`
-	Name        string    `json:"name" db:"name"`
-	Host        string    `json:"host" db:"host"`
-	Port        int       `json:"port" db:"port"`
-	Username    string    `json:"username" db:"username"`
-	Password    string    `json:"password" db:"password"`
-	Database    string    `json:"database" db:"database_name"`
-	LocalDBName string    `json:"local_db_name" db:"local_db_name"`
-	SSL         bool      `json:"ssl" db:"ssl"`
-	CreatedAt   time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+	ID        string    `json:"id" db:"id"`
+	Name      string    `json:"name" db:"name"`
+	Host      string    `json:"host" db:"host"`
+	Port      int       `json:"port" db:"port"`
+	Username  string    `json:"username" db:"username"`
+	Password  string    `json:"password" db:"password"`
+	Database  string    `json:"database" db:"database_name"`
+	SSL       bool      `json:"ssl" db:"ssl"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // Connection represents a database connection with status
@@ -74,16 +73,19 @@ type ConnectionStatus struct {
 
 // SyncConfig represents synchronization configuration
 type SyncConfig struct {
-	ID           string          `json:"id" db:"id"`
-	ConnectionID string          `json:"connection_id" db:"connection_id"`
-	Name         string          `json:"name" db:"name"`
-	Tables       []*TableMapping `json:"tables"`
-	SyncMode     SyncMode        `json:"sync_mode" db:"sync_mode"`
-	Schedule     string          `json:"schedule" db:"schedule"`
-	Enabled      bool            `json:"enabled" db:"enabled"`
-	Options      *SyncOptions    `json:"options"`
-	CreatedAt    time.Time       `json:"created_at" db:"created_at"`
-	UpdatedAt    time.Time       `json:"updated_at" db:"updated_at"`
+	ID                 string          `json:"id" db:"id"`
+	SourceConnectionID string          `json:"source_connection_id" db:"source_connection_id"`
+	TargetConnectionID string          `json:"target_connection_id" db:"target_connection_id"`
+	SourceDatabase     string          `json:"source_database" db:"source_database"`
+	TargetDatabase     string          `json:"target_database" db:"target_database"`
+	Name               string          `json:"name" db:"name"`
+	Tables             []*TableMapping `json:"tables"`
+	SyncMode           SyncMode        `json:"sync_mode" db:"sync_mode"`
+	Schedule           string          `json:"schedule" db:"schedule"`
+	Enabled            bool            `json:"enabled" db:"enabled"`
+	Options            *SyncOptions    `json:"options"`
+	CreatedAt          time.Time       `json:"created_at" db:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at" db:"updated_at"`
 }
 
 // TableMapping represents the mapping between source and target tables

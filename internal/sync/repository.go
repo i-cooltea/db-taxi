@@ -36,13 +36,12 @@ func (r *MySQLRepository) CreateConnection(ctx context.Context, config *Connecti
 		"username":      config.Username,
 		"password":      config.Password,
 		"database_name": config.Database,
-		"local_db_name": config.LocalDBName,
 		"ssl":           config.SSL,
 	}
 
 	query := `
-		INSERT INTO connections (id, name, host, port, username, password, database_name, local_db_name, ` + "`ssl`" + `)
-		VALUES (:id, :name, :host, :port, :username, :password, :database_name, :local_db_name, :ssl)
+		INSERT INTO connections (id, name, host, port, username, password, database_name, ` + "`ssl`" + `)
+		VALUES (:id, :name, :host, :port, :username, :password, :database_name, :ssl)
 	`
 	_, err := r.db.NamedExecContext(ctx, query, params)
 	if err != nil {
@@ -54,7 +53,7 @@ func (r *MySQLRepository) CreateConnection(ctx context.Context, config *Connecti
 
 func (r *MySQLRepository) GetConnection(ctx context.Context, id string) (*ConnectionConfig, error) {
 	var config ConnectionConfig
-	query := `SELECT * FROM connections WHERE id = ?`
+	query := "SELECT id, name, host, port, username, password, database_name, " + "`ssl`" + ", created_at, updated_at FROM connections WHERE id = ?"
 	err := r.db.GetContext(ctx, &config, query, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -68,7 +67,7 @@ func (r *MySQLRepository) GetConnection(ctx context.Context, id string) (*Connec
 
 func (r *MySQLRepository) GetConnections(ctx context.Context) ([]*ConnectionConfig, error) {
 	var configs []*ConnectionConfig
-	query := `SELECT * FROM connections ORDER BY created_at DESC`
+	query := "SELECT id, name, host, port, username, password, database_name, " + "`ssl`" + ", created_at, updated_at FROM connections ORDER BY created_at DESC"
 	err := r.db.SelectContext(ctx, &configs, query)
 	if err != nil {
 		r.logger.WithError(err).Error("Failed to get connections")
@@ -87,14 +86,13 @@ func (r *MySQLRepository) UpdateConnection(ctx context.Context, id string, confi
 		"username":      config.Username,
 		"password":      config.Password,
 		"database_name": config.Database,
-		"local_db_name": config.LocalDBName,
 		"ssl":           config.SSL,
 	}
 
 	query := `
 		UPDATE connections 
 		SET name = :name, host = :host, port = :port, username = :username, 
-		    password = :password, database_name = :database_name, local_db_name = :local_db_name, 
+		    password = :password, database_name = :database_name, 
 		    ` + "`ssl`" + ` = :ssl, updated_at = CURRENT_TIMESTAMP
 		WHERE id = :id
 	`
@@ -149,11 +147,11 @@ func (r *MySQLRepository) CreateSyncConfig(ctx context.Context, config *SyncConf
 	}
 
 	query := `
-		INSERT INTO sync_configs (id, connection_id, name, sync_mode, schedule, enabled, options)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO sync_configs (id, source_connection_id, target_connection_id, source_database, target_database, name, sync_mode, schedule, enabled, options)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
-	_, err = r.db.ExecContext(ctx, query, config.ID, config.ConnectionID, config.Name,
-		config.SyncMode, config.Schedule, config.Enabled, optionsJSON)
+	_, err = r.db.ExecContext(ctx, query, config.ID, config.SourceConnectionID, config.TargetConnectionID, config.SourceDatabase, config.TargetDatabase,
+		config.Name, config.SyncMode, config.Schedule, config.Enabled, optionsJSON)
 	if err != nil {
 		r.logger.WithError(err).Error("Failed to create sync config")
 		return fmt.Errorf("failed to create sync config: %w", err)
@@ -165,10 +163,10 @@ func (r *MySQLRepository) GetSyncConfig(ctx context.Context, id string) (*SyncCo
 	var config SyncConfig
 	var optionsJSON sql.NullString
 
-	query := `SELECT id, connection_id, name, sync_mode, schedule, enabled, options, created_at, updated_at 
+	query := `SELECT id, source_connection_id, target_connection_id, source_database, target_database, name, sync_mode, schedule, enabled, options, created_at, updated_at 
 	          FROM sync_configs WHERE id = ?`
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&config.ID, &config.ConnectionID, &config.Name, &config.SyncMode,
+		&config.ID, &config.SourceConnectionID, &config.TargetConnectionID, &config.SourceDatabase, &config.TargetDatabase, &config.Name, &config.SyncMode,
 		&config.Schedule, &config.Enabled, &optionsJSON, &config.CreatedAt, &config.UpdatedAt,
 	)
 	if err != nil {
@@ -202,10 +200,10 @@ func (r *MySQLRepository) GetSyncConfig(ctx context.Context, id string) (*SyncCo
 
 func (r *MySQLRepository) GetSyncConfigs(ctx context.Context, connectionID string) ([]*SyncConfig, error) {
 	var configs []*SyncConfig
-	query := `SELECT id, connection_id, name, sync_mode, schedule, enabled, options, created_at, updated_at 
-	          FROM sync_configs WHERE connection_id = ? ORDER BY created_at DESC`
+	query := `SELECT id, source_connection_id, target_connection_id, source_database, target_database, name, sync_mode, schedule, enabled, options, created_at, updated_at 
+	          FROM sync_configs WHERE source_connection_id = ? OR target_connection_id = ? ORDER BY created_at DESC`
 
-	rows, err := r.db.QueryContext(ctx, query, connectionID)
+	rows, err := r.db.QueryContext(ctx, query, connectionID, connectionID)
 	if err != nil {
 		r.logger.WithError(err).WithField("connection_id", connectionID).Error("Failed to get sync configs")
 		return nil, fmt.Errorf("failed to get sync configs: %w", err)
@@ -216,7 +214,7 @@ func (r *MySQLRepository) GetSyncConfigs(ctx context.Context, connectionID strin
 		var config SyncConfig
 		var optionsJSON sql.NullString
 
-		err := rows.Scan(&config.ID, &config.ConnectionID, &config.Name, &config.SyncMode,
+		err := rows.Scan(&config.ID, &config.SourceConnectionID, &config.TargetConnectionID, &config.SourceDatabase, &config.TargetDatabase, &config.Name, &config.SyncMode,
 			&config.Schedule, &config.Enabled, &optionsJSON, &config.CreatedAt, &config.UpdatedAt)
 		if err != nil {
 			r.logger.WithError(err).Error("Failed to scan sync config")
@@ -260,10 +258,10 @@ func (r *MySQLRepository) UpdateSyncConfig(ctx context.Context, id string, confi
 
 	query := `
 		UPDATE sync_configs 
-		SET name = ?, sync_mode = ?, schedule = ?, enabled = ?, options = ?, updated_at = CURRENT_TIMESTAMP
+		SET source_connection_id = ?, target_connection_id = ?, source_database = ?, target_database = ?, name = ?, sync_mode = ?, schedule = ?, enabled = ?, options = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
 	`
-	result, err := r.db.ExecContext(ctx, query, config.Name, config.SyncMode,
+	result, err := r.db.ExecContext(ctx, query, config.SourceConnectionID, config.TargetConnectionID, config.SourceDatabase, config.TargetDatabase, config.Name, config.SyncMode,
 		config.Schedule, config.Enabled, optionsJSON, id)
 	if err != nil {
 		r.logger.WithError(err).WithField("id", id).Error("Failed to update sync config")
@@ -440,10 +438,11 @@ func (r *MySQLRepository) UpdateSyncJob(ctx context.Context, id string, job *Syn
 func (r *MySQLRepository) GetJobHistory(ctx context.Context, limit, offset int) ([]*JobHistory, error) {
 	var history []*JobHistory
 	query := `
-		SELECT j.*, sc.name as config_name, c.name as connection_name
+		SELECT j.*, sc.name as config_name, CONCAT(cs.name, ' -> ', ct.name) as connection_name
 		FROM sync_jobs j
 		JOIN sync_configs sc ON j.config_id = sc.id
-		JOIN connections c ON sc.connection_id = c.id
+		JOIN connections cs ON sc.source_connection_id = cs.id
+		JOIN connections ct ON sc.target_connection_id = ct.id
 		ORDER BY j.start_time DESC
 		LIMIT ? OFFSET ?
 	`

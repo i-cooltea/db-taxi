@@ -139,13 +139,22 @@ export const useSyncStore = defineStore('sync', () => {
       // Load all connections first
       await fetchConnections()
       
+      // Load all configs (we'll need to update the API endpoint to support this)
+      // For now, we'll fetch configs for each connection and merge them
       configs.value = []
-      // Load configs for each connection
+      const configSet = new Set()
+      
+      // Load configs for each connection (as source or target)
       for (const conn of connections.value) {
         const response = await fetch(`/api/sync/configs?connection_id=${conn.config.id}`)
         const result = await response.json()
         if (result.success && result.data) {
-          configs.value.push(...result.data)
+          result.data.forEach(config => {
+            if (!configSet.has(config.id)) {
+              configs.value.push(config)
+              configSet.add(config.id)
+            }
+          })
         }
       }
     } catch (err) {
