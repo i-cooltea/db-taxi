@@ -8,7 +8,7 @@
 ## 功能特性
 
 - 🔌 **数据库连接管理** - 支持 MySQL 数据库连接，包括连接池管理
-- 🔄 **数据库同步** - 支持多数据库连接管理和选择性表同步
+- 🔄 **数据库同步** - 支持数据库全量同步，指定表同步，按筛选条件同步
 - 📦 **批量操作** - 支持批量数据传输和分批处理
 - 🔍 **同步监控** - 实时监控同步任务状态和进度
 - 🌐 **Web 界面** - 现代化的响应式 Web 界面（Vue 3 + Vite）
@@ -28,6 +28,8 @@ cp config.yaml.example config.yaml
 
 # 编辑配置文件
 vim config.yaml
+
+./db-taxi -config /path/to/your/config.yaml
 ```
 
 #### 方式2: 使用命令行参数
@@ -43,11 +45,6 @@ export DBT_DATABASE_USERNAME=root
 export DBT_DATABASE_PASSWORD=secret
 export DBT_DATABASE_DATABASE=mydb
 ./db-taxi
-```
-
-#### 方式4: 指定自定义配置文件
-```bash
-./db-taxi -config /path/to/your/config.yaml
 ```
 
 ### 2. 构建和运行
@@ -120,11 +117,11 @@ DB-Taxi 提供强大的数据库同步功能，支持多数据库连接管理和
 
 ### 同步功能特性
 
-- ✅ 多数据库连接管理
+- ✅ 多数据库实例连接管理
 - ✅ 选择性表同步
 - ✅ 全量和增量同步模式
 - ✅ 实时进度监控
-- ✅ 自动错误处理和重试
+- ✅ 同步失败 支持查看错误信息
 - ✅ 配置导入导出
 - ✅ 批量操作和性能优化
 - ✅ 定时同步计划
@@ -169,7 +166,6 @@ db-taxi [options]
 # 使用预设的配置文件
 ./db-taxi -config configs/local.yaml      # 本地开发
 ./db-taxi -config configs/production.yaml # 生产环境
-./db-taxi -config configs/docker.yaml     # Docker环境
 ```
 
 ### 命令行参数覆盖
@@ -381,6 +377,9 @@ npm run dev
 
 # 构建生产版本
 npm run build
+
+# 构建前端代码到static文件夹（在项目根目录执行）
+make build-frontend
 ```
 
 ### Docker 部署

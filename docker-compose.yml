@@ -50,7 +50,7 @@ services:
       - MYSQL_USER=appuser
       - MYSQL_PASSWORD=apppassword
     ports:
-      - "3306:3306"
+      - "13306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
