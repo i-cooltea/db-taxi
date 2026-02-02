@@ -1,0 +1,46 @@
+# Docker container configuration
+server:
+  port: 8080
+  host: "0.0.0.0"
+  read_timeout: "30s"
+  write_timeout: "30s"
+
+# Database configuration (for the main DB-Taxi connection)
+database:
+  host: "mysql"  # Docker service name
+  port: 3306
+  username: "root"
+  password: "rootpassword"
+  database: "myapp"
+  ssl: false
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime: "5m"
+  query_timeout: "30s"
+
+# Security configuration
+security:
+  session_timeout: "30m"
+  read_only_mode: false
+  enable_audit: true
+
+# Logging configuration
+logging:
+  level: "info"
+  format: "text"
+  output: "stdout"
+  max_size: 100
+  max_backups: 3
+  max_age: 28
+
+# Synchronization system configuration
+sync:
+  enabled: true
+  max_concurrency: 5
+  batch_size: 1000
+  retry_attempts: 3
+  retry_delay: "30s"
+  job_timeout: "1h"
+  cleanup_age: "720h"
+  enable_compression: true
+  default_conflict_resolution: "overwrite"

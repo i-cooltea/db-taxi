@@ -37,9 +37,6 @@ RUN addgroup -g 1001 -S appgroup && \
 # Change ownership of the app directory
 RUN chown -R appuser:appgroup /app
 
-# Switch to non-root user
-USER appuser
-
 # Expose port
 EXPOSE 8080
 
