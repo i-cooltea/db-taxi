@@ -175,8 +175,43 @@
 
         <!-- Tables Selection Tab -->
         <div v-show="activeTab === 'tables'" class="tab-content tables-tab">
-          <div class="tables-layout">
-            <!-- Left: Table Selection List -->
+          <div class="tables-layout tables-layout-three">
+            <!-- Leftmost: 已选表顺序（始终展示） -->
+            <div class="selected-order-panel">
+              <div class="selected-order-header">
+                <label>已选表顺序</label>
+                <small>拖动可调整同步顺序</small>
+              </div>
+              <div v-if="selectedTablesList.length === 0" class="selected-order-empty">
+                <p>在中间勾选表后，将在此显示同步顺序</p>
+              </div>
+              <div
+                v-else
+                class="selected-order-list"
+                @dragover.prevent
+              >
+                <div
+                  v-for="(item, index) in selectedTablesList"
+                  :key="item.source_table"
+                  class="selected-order-item"
+                  :class="{ active: editingTable === item.source_table, dragging: dragFromIndex === index }"
+                  :title="item.source_table"
+                  draggable="true"
+                  @click="selectAndEditTable(item.source_table)"
+                  @dragstart="onDragStartSelected(index, $event)"
+                  @dragover.prevent="dragOverIndex = index"
+                  @dragleave="dragOverIndex = null"
+                  @drop="onDropSelected(index, $event)"
+                  @dragend="dragFromIndex = null; dragOverIndex = null"
+                >
+                  <span class="drag-handle" title="拖动排序">⋮⋮</span>
+                  <span class="table-name">{{ item.source_table }}</span>
+                  <span class="table-mode-badge">{{ item.sync_mode === 'full' ? '全量' : '增量' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Middle: Table Selection List -->
             <div class="tables-selection">
               <div class="selection-header">
                 <label>选择要同步的表</label>
@@ -193,7 +228,7 @@
                     type="button" 
                     class="btn-link" 
                     @click="deselectAllTables"
-                    :disabled="selectedTables.size === 0"
+                    :disabled="selectedTablesList.length === 0"
                   >
                     清空
                   </button>
@@ -218,23 +253,23 @@
                   v-for="tableName in availableTables"
                   :key="tableName"
                   class="table-item-compact"
-                  :class="{ selected: selectedTables.has(tableName), active: editingTable === tableName }"
+                  :class="{ selected: isTableSelected(tableName), active: editingTable === tableName }"
                   @click="selectAndEditTable(tableName)"
                 >
                   <input 
                     type="checkbox" 
-                    :checked="selectedTables.has(tableName)"
-                    @click.stop="toggleTable(tableName, !selectedTables.has(tableName))"
+                    :checked="isTableSelected(tableName)"
+                    @click.stop="toggleTable(tableName, !isTableSelected(tableName))"
                   >
                   <span class="table-name">{{ tableName }}</span>
-                  <span v-if="selectedTables.has(tableName)" class="table-mode-badge">
-                    {{ selectedTables.get(tableName).sync_mode === 'full' ? '全量' : '增量' }}
+                  <span v-if="isTableSelected(tableName)" class="table-mode-badge">
+                    {{ getTableConfig(tableName).sync_mode === 'full' ? '全量' : '增量' }}
                   </span>
                 </div>
               </div>
 
               <div class="selection-summary">
-                已选择 <strong>{{ selectedTables.size }}</strong> / {{ availableTables.length }} 个表
+                已选择 <strong>{{ selectedTablesList.length }}</strong> / {{ availableTables.length }} 个表
               </div>
             </div>
 
@@ -391,9 +426,13 @@ const loadingTables = ref(false)
 const loadingDatabases = ref(false)
 const availableDatabases = ref([])
 const availableTables = ref([])
-const selectedTables = ref(new Map())
+// 已选表列表（数组保证顺序，用于同步执行顺序；可拖动排序）
+const selectedTablesList = ref([])
 const editingTable = ref(null)
+const dragFromIndex = ref(null)
+const dragOverIndex = ref(null)
 const currentTableConfig = ref({
+  source_table: '',
   target_table: '',
   sync_mode: 'full',
   enabled: true,
@@ -444,16 +483,16 @@ onMounted(() => {
       Object.assign(formData.options, props.config.options)
     }
 
-    // Load selected tables
+    // Load selected tables (preserve API order = sync order)
     if (props.config.tables) {
-      props.config.tables.forEach(table => {
-        selectedTables.value.set(table.source_table, {
-          target_table: table.target_table,
-          sync_mode: table.sync_mode,
-          enabled: table.enabled,
-          where_clause: table.where_clause || ''
-        })
-      })
+      selectedTablesList.value = props.config.tables.map(t => ({
+        source_table: t.source_table,
+        target_table: t.target_table || t.source_table,
+        sync_mode: t.sync_mode || 'full',
+        enabled: t.enabled !== false,
+        where_clause: t.where_clause || '',
+        id: t.id
+      }))
     }
 
     // Load databases for source connection, then load tables for selected source database
@@ -465,12 +504,21 @@ onMounted(() => {
   }
 })
 
+function isTableSelected(tableName) {
+  return selectedTablesList.value.some(t => t.source_table === tableName)
+}
+
+function getTableConfig(tableName) {
+  const t = selectedTablesList.value.find(x => x.source_table === tableName)
+  return t || { sync_mode: 'full' }
+}
+
 async function onSourceConnectionChange() {
   if (formData.source_connection_id) {
     // Reset selections when source connection changes
     availableDatabases.value = []
     availableTables.value = []
-    selectedTables.value.clear()
+    selectedTablesList.value = []
     editingTable.value = null
     formData.source_database = ''
     if (!targetDatabaseTouched.value) {
@@ -491,7 +539,7 @@ async function onSourceDatabaseChange() {
       formData.target_database = formData.source_database
     }
     availableTables.value = []
-    selectedTables.value.clear()
+    selectedTablesList.value = []
     editingTable.value = null
     await loadTablesForConnection(formData.source_connection_id, formData.source_database)
   } else {
@@ -539,44 +587,73 @@ async function loadTablesForConnection(connectionId, database) {
 
 function toggleTable(tableName, selected) {
   if (selected) {
-    selectedTables.value.set(tableName, {
-      target_table: tableName,
-      sync_mode: formData.sync_mode,
-      enabled: true,
-      where_clause: ''
-    })
-    // Auto-select for editing
+    if (!isTableSelected(tableName)) {
+      selectedTablesList.value.push({
+        source_table: tableName,
+        target_table: tableName,
+        sync_mode: formData.sync_mode,
+        enabled: true,
+        where_clause: ''
+      })
+    }
     selectAndEditTable(tableName)
   } else {
-    selectedTables.value.delete(tableName)
+    selectedTablesList.value = selectedTablesList.value.filter(t => t.source_table !== tableName)
     if (editingTable.value === tableName) {
       editingTable.value = null
     }
   }
 }
 
+function onDragStartSelected(index, e) {
+  dragFromIndex.value = index
+  e.dataTransfer.effectAllowed = 'move'
+  e.dataTransfer.setData('text/plain', String(index))
+}
+
+function onDropSelected(toIndex, e) {
+  e.preventDefault()
+  const from = dragFromIndex.value
+  if (from == null) return
+  if (from === toIndex) return
+  const list = [...selectedTablesList.value]
+  const [item] = list.splice(from, 1)
+  list.splice(toIndex, 0, item)
+  selectedTablesList.value = list
+  dragFromIndex.value = null
+}
+
 function selectAndEditTable(tableName) {
   editingTable.value = tableName
-  
-  if (selectedTables.value.has(tableName)) {
-    // Load existing config
-    const tableData = selectedTables.value.get(tableName)
-    currentTableConfig.value = { ...tableData }
-  } else {
-    // Create new config
+  const item = selectedTablesList.value.find(t => t.source_table === tableName)
+  if (item) {
     currentTableConfig.value = {
+      source_table: item.source_table,
+      target_table: item.target_table,
+      sync_mode: item.sync_mode,
+      enabled: item.enabled,
+      where_clause: item.where_clause || ''
+    }
+  } else {
+    currentTableConfig.value = {
+      source_table: tableName,
       target_table: tableName,
       sync_mode: formData.sync_mode,
       enabled: true,
       where_clause: ''
     }
-    selectedTables.value.set(tableName, { ...currentTableConfig.value })
   }
 }
 
 function saveCurrentTableConfig() {
   if (editingTable.value) {
-    selectedTables.value.set(editingTable.value, { ...currentTableConfig.value })
+    const item = selectedTablesList.value.find(t => t.source_table === editingTable.value)
+    if (item) {
+      item.target_table = currentTableConfig.value.target_table || currentTableConfig.value.source_table
+      item.sync_mode = currentTableConfig.value.sync_mode
+      item.enabled = currentTableConfig.value.enabled
+      item.where_clause = currentTableConfig.value.where_clause || ''
+    }
     editingTable.value = null
   }
 }
@@ -586,26 +663,15 @@ function cancelTableEdit() {
 }
 
 function updateTableMode(tableName, syncMode) {
-  const tableData = selectedTables.value.get(tableName)
-  if (tableData) {
-    tableData.sync_mode = syncMode
-  }
-}
-
-function configureTable(tableName) {
-  editingTable.value = tableName
-  showTableModal.value = true
-}
-
-function saveTableMapping(tableName, mappingData) {
-  selectedTables.value.set(tableName, mappingData)
-  showTableModal.value = false
+  const item = selectedTablesList.value.find(t => t.source_table === tableName)
+  if (item) item.sync_mode = syncMode
 }
 
 function selectAllTables() {
   availableTables.value.forEach(tableName => {
-    if (!selectedTables.value.has(tableName)) {
-      selectedTables.value.set(tableName, {
+    if (!isTableSelected(tableName)) {
+      selectedTablesList.value.push({
+        source_table: tableName,
         target_table: tableName,
         sync_mode: formData.sync_mode,
         enabled: true,
@@ -616,7 +682,8 @@ function selectAllTables() {
 }
 
 function deselectAllTables() {
-  selectedTables.value.clear()
+  selectedTablesList.value = []
+  editingTable.value = null
 }
 
 async function handleSubmit() {
@@ -647,17 +714,17 @@ async function handleSubmit() {
     return
   }
 
-  if (selectedTables.value.size === 0) {
+  if (selectedTablesList.value.length === 0) {
     error.value = '请至少选择一个表进行同步'
     return
   }
 
-  const tables = Array.from(selectedTables.value.entries()).map(([source, data]) => ({
-    source_table: source,
-    target_table: data.target_table,
-    sync_mode: data.sync_mode,
-    enabled: data.enabled,
-    where_clause: data.where_clause || undefined
+  const tables = selectedTablesList.value.map(t => ({
+    source_table: t.source_table,
+    target_table: t.target_table || t.source_table,
+    sync_mode: t.sync_mode,
+    enabled: t.enabled,
+    where_clause: t.where_clause || undefined
   }))
 
   const configData = {
@@ -707,8 +774,10 @@ async function handleSubmit() {
   margin: 2% auto;
   padding: 2rem;
   border-radius: 10px;
-  width: 90%;
-  max-width: 900px;
+  width: 92%;
+  max-width: 1200px;
+  max-height: 92vh;
+  overflow-y: auto;
   animation: slideIn 0.3s;
 }
 
@@ -775,14 +844,74 @@ async function handleSubmit() {
 }
 
 .tables-tab {
-  min-height: 500px;
+  min-height: 560px;
 }
 
 .tables-layout {
   display: grid;
   grid-template-columns: 350px 1fr;
   gap: 1.5rem;
-  height: 500px;
+  height: 560px;
+}
+
+.tables-layout.tables-layout-three {
+  grid-template-columns: minmax(280px, 380px) 350px 1fr;
+}
+
+/* Leftmost: 手动排序面板（仅在有已选表时显示） */
+.selected-order-panel {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e1e5f2;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f0f9ff;
+}
+
+.selected-order-header {
+  padding: 0.75rem 1rem;
+  background: #e0f2fe;
+  border-bottom: 1px solid #bae6fd;
+}
+
+.selected-order-header label {
+  display: block;
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #0369a1;
+}
+
+.selected-order-header small {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: #0c4a6e;
+}
+
+.selected-order-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.selected-order-empty p {
+  margin: 0;
+}
+
+.selected-order-panel .selected-order-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 /* Left Panel: Table Selection */
@@ -888,6 +1017,7 @@ async function handleSubmit() {
   background: #667eea;
   color: white;
   border-radius: 10px;
+  flex-shrink: 0;
 }
 
 .loading-compact {
@@ -919,6 +1049,57 @@ async function handleSubmit() {
   text-align: center;
   color: #999;
   font-size: 0.875rem;
+}
+
+
+.selected-order-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  cursor: grab;
+  font-size: 0.8125rem;
+  background: #fff;
+  border: 1px solid #e1e5f2;
+  transition: background 0.15s;
+  min-width: 0;
+}
+
+.selected-order-item .table-name {
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.35;
+}
+
+.selected-order-item:active {
+  cursor: grabbing;
+}
+
+.selected-order-item:hover {
+  background: #e0f2fe;
+}
+
+.selected-order-item.active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+.selected-order-item.dragging {
+  opacity: 0.5;
+}
+
+.drag-handle {
+  color: #9ca3af;
+  cursor: grab;
+  font-size: 0.875rem;
+  user-select: none;
+}
+
+.selected-order-item.active .drag-handle {
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .selection-summary {

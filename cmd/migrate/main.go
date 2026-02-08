@@ -107,7 +107,7 @@ func main() {
 }
 
 func connectDatabase(cfg *config.Config) (*sql.DB, error) {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&multiStatements=true",
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&multiStatements=true&charset=utf8mb4",
 		cfg.Database.Username,
 		cfg.Database.Password,
 		cfg.Database.Host,

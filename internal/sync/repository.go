@@ -302,8 +302,8 @@ func (r *MySQLRepository) DeleteSyncConfig(ctx context.Context, id string) error
 
 func (r *MySQLRepository) CreateTableMapping(ctx context.Context, mapping *TableMapping) error {
 	query := `
-		INSERT INTO table_mappings (id, sync_config_id, source_table, target_table, sync_mode, enabled, where_clause)
-		VALUES (:id, :sync_config_id, :source_table, :target_table, :sync_mode, :enabled, :where_clause)
+		INSERT INTO table_mappings (id, sync_config_id, source_table, target_table, sync_mode, enabled, where_clause, sort_order)
+		VALUES (:id, :sync_config_id, :source_table, :target_table, :sync_mode, :enabled, :where_clause, :sort_order)
 	`
 	_, err := r.db.NamedExecContext(ctx, query, mapping)
 	if err != nil {
@@ -315,7 +315,7 @@ func (r *MySQLRepository) CreateTableMapping(ctx context.Context, mapping *Table
 
 func (r *MySQLRepository) GetTableMappings(ctx context.Context, syncConfigID string) ([]*TableMapping, error) {
 	var mappings []*TableMapping
-	query := `SELECT * FROM table_mappings WHERE sync_config_id = ? ORDER BY created_at`
+	query := `SELECT * FROM table_mappings WHERE sync_config_id = ? ORDER BY sort_order ASC, created_at ASC`
 	err := r.db.SelectContext(ctx, &mappings, query, syncConfigID)
 	if err != nil {
 		r.logger.WithError(err).WithField("sync_config_id", syncConfigID).Error("Failed to get table mappings")
@@ -328,7 +328,7 @@ func (r *MySQLRepository) UpdateTableMapping(ctx context.Context, id string, map
 	query := `
 		UPDATE table_mappings 
 		SET source_table = :source_table, target_table = :target_table, sync_mode = :sync_mode, 
-		    enabled = :enabled, where_clause = :where_clause, updated_at = CURRENT_TIMESTAMP
+		    enabled = :enabled, where_clause = :where_clause, sort_order = :sort_order, updated_at = CURRENT_TIMESTAMP
 		WHERE id = :id
 	`
 	mapping.ID = id

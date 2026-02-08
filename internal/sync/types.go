@@ -97,6 +97,7 @@ type TableMapping struct {
 	SyncMode     SyncMode  `json:"sync_mode" db:"sync_mode"`
 	Enabled      bool      `json:"enabled" db:"enabled"`
 	WhereClause  string    `json:"where_clause,omitempty" db:"where_clause"`
+	SortOrder    int       `json:"sort_order" db:"sort_order"` // User-defined order for sync execution (lower first)
 	CreatedAt    time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
 }

@@ -270,12 +270,13 @@ func (m *MappingManagerImpl) ImportConfig(ctx context.Context, config *ConfigExp
 
 			// Use transaction directly for table mapping creation
 			query := `
-				INSERT INTO table_mappings (id, sync_config_id, source_table, target_table, sync_mode, enabled, where_clause)
-				VALUES (?, ?, ?, ?, ?, ?, ?)
+				INSERT INTO table_mappings (id, sync_config_id, source_table, target_table, sync_mode, enabled, where_clause, sort_order)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			`
+			sortOrder := tableMapping.SortOrder
 			_, err = tx.ExecContext(ctx, query, tableMapping.ID, tableMapping.SyncConfigID,
 				tableMapping.SourceTable, tableMapping.TargetTable, tableMapping.SyncMode,
-				tableMapping.Enabled, tableMapping.WhereClause)
+				tableMapping.Enabled, tableMapping.WhereClause, sortOrder)
 			if err != nil {
 				return fmt.Errorf("failed to import table mapping '%s': %w", tableMapping.SourceTable, err)
 			}

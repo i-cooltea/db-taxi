@@ -363,7 +363,7 @@ func (cp *ConnectionPool) getConnectionKey(config *ConnectionConfig) string {
 
 // createConnection creates a new database connection
 func (cp *ConnectionPool) createConnection(config *ConnectionConfig) (*sqlx.DB, error) {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&loc=UTC",
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&loc=UTC&charset=utf8mb4",
 		config.Username,
 		config.Password,
 		config.Host,

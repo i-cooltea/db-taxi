@@ -194,6 +194,7 @@ func (s *Server) registerRoutes() {
 					configs.GET("/:id/tables/:table/schema", s.getRemoteTableSchema)
 					configs.GET("/:id/mappings", s.getTableMappings)
 					configs.POST("/:id/mappings", s.addTableMapping)
+					configs.PUT("/:id/mappings/reorder", s.reorderTableMappings)
 					configs.PUT("/:id/mappings/:mapping_id", s.updateTableMapping)
 					configs.DELETE("/:id/mappings/:mapping_id", s.removeTableMapping)
 					configs.POST("/:id/mappings/:mapping_id/toggle", s.toggleTableMapping)
@@ -1249,6 +1250,42 @@ func (s *Server) setTableSyncMode(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Table sync mode updated successfully",
+	})
+}
+
+func (s *Server) reorderTableMappings(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	configID := c.Param("id")
+	var request struct {
+		MappingIDs []string `json:"mapping_ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request body: mapping_ids required",
+		})
+		return
+	}
+
+	if err := s.syncManager.GetSyncManager().ReorderTableMappings(c.Request.Context(), configID, request.MappingIDs); err != nil {
+		s.logger.WithError(err).WithField("config_id", configID).Error("Failed to reorder table mappings")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Table mappings reordered successfully",
 	})
 }
 

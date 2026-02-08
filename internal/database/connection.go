@@ -116,6 +116,7 @@ func buildDSN(cfg *config.DatabaseConfig) (string, error) {
 		AllowNativePasswords: true,
 		ParseTime:            true,
 		Loc:                  time.UTC,
+		Params:               map[string]string{"charset": "utf8mb4"},
 	}
 
 	// Configure SSL

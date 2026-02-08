@@ -460,6 +460,7 @@ func (e *DefaultSyncEngine) connectToRemote(config *ConnectionConfig) (*sqlx.DB,
 		AllowNativePasswords: true,
 		ParseTime:            true,
 		Loc:                  time.UTC,
+		Params:               map[string]string{"charset": "utf8mb4"},
 	}
 
 	if config.SSL {
@@ -492,14 +493,28 @@ func (e *DefaultSyncEngine) getTableSchemaFromRemote(ctx context.Context, remote
 		Keys:    []*KeyInfo{},
 	}
 
-	// Get column information
+	// Get table charset/collation so target table can match source
+	var tableCollation sql.NullString
+	tableCCQuery := `SELECT TABLE_COLLATION FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`
+	if err := remoteDB.GetContext(ctx, &tableCollation, tableCCQuery, tableName); err == nil && tableCollation.Valid && tableCollation.String != "" {
+		schema.TableCollation = tableCollation.String
+		if idx := strings.Index(schema.TableCollation, "_"); idx > 0 {
+			schema.TableCharset = schema.TableCollation[:idx]
+		} else {
+			schema.TableCharset = schema.TableCollation
+		}
+	}
+
+	// Get column information (including charset/collation for string columns)
 	columnQuery := `
 		SELECT 
 			COLUMN_NAME, 
 			COLUMN_TYPE, 
 			IS_NULLABLE, 
 			COLUMN_DEFAULT, 
-			EXTRA
+			EXTRA,
+			CHARACTER_SET_NAME,
+			COLLATION_NAME
 		FROM INFORMATION_SCHEMA.COLUMNS
 		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
 		ORDER BY ORDINAL_POSITION
@@ -515,14 +530,21 @@ func (e *DefaultSyncEngine) getTableSchemaFromRemote(ctx context.Context, remote
 		var col ColumnInfo
 		var nullable string
 		var defaultValue sql.NullString
+		var charSet, collation sql.NullString
 
-		if err := rows.Scan(&col.Name, &col.Type, &nullable, &defaultValue, &col.Extra); err != nil {
+		if err := rows.Scan(&col.Name, &col.Type, &nullable, &defaultValue, &col.Extra, &charSet, &collation); err != nil {
 			return nil, fmt.Errorf("failed to scan column info: %w", err)
 		}
 
 		col.Nullable = (nullable == "YES")
 		if defaultValue.Valid {
 			col.DefaultValue = defaultValue.String
+		}
+		if charSet.Valid {
+			col.CharacterSet = charSet.String
+		}
+		if collation.Valid {
+			col.Collation = collation.String
 		}
 
 		schema.Columns = append(schema.Columns, &col)
@@ -665,12 +687,16 @@ func (e *DefaultSyncEngine) buildCreateTableStatement(localDB, tableName string,
 
 	sb.WriteString(fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n", localDB, tableName))
 
-	// Add columns
+	// Add columns (preserve source charset/collation for string columns)
 	for i, col := range schema.Columns {
 		if i > 0 {
 			sb.WriteString(",\n")
 		}
 		sb.WriteString(fmt.Sprintf("  `%s` %s", col.Name, col.Type))
+
+		if col.CharacterSet != "" && col.Collation != "" {
+			sb.WriteString(fmt.Sprintf(" CHARACTER SET %s COLLATE %s", col.CharacterSet, col.Collation))
+		}
 
 		if !col.Nullable {
 			sb.WriteString(" NOT NULL")
@@ -711,6 +737,11 @@ func (e *DefaultSyncEngine) buildCreateTableStatement(localDB, tableName string,
 	}
 
 	sb.WriteString("\n)")
+
+	// Table-level charset/collation: keep target consistent with source
+	if schema.TableCharset != "" && schema.TableCollation != "" {
+		sb.WriteString(fmt.Sprintf(" ENGINE=InnoDB DEFAULT CHARSET=%s COLLATE=%s", schema.TableCharset, schema.TableCollation))
+	}
 
 	return sb.String()
 }
@@ -877,7 +908,7 @@ func (e *DefaultSyncEngine) insertBatch(ctx context.Context, localDB, tableName 
 				sb.WriteString(", ")
 			}
 			sb.WriteString("?")
-			args = append(args, batch[i][col])
+			args = append(args, valueForUTF8MB3Insert(batch[i][col]))
 		}
 		sb.WriteString(")")
 	}
@@ -1206,7 +1237,7 @@ func (e *DefaultSyncEngine) upsertBatch(ctx context.Context, localDB, tableName 
 				sb.WriteString(", ")
 			}
 			sb.WriteString("?")
-			args = append(args, batch[i][col])
+			args = append(args, valueForUTF8MB3Insert(batch[i][col]))
 		}
 		sb.WriteString(")")
 	}
@@ -1691,7 +1722,7 @@ func (e *transactionalSyncEngine) insertBatchWithTx(ctx context.Context, localDB
 				sb.WriteString(", ")
 			}
 			sb.WriteString("?")
-			args = append(args, batch[i][col])
+			args = append(args, valueForUTF8MB3Insert(batch[i][col]))
 		}
 		sb.WriteString(")")
 	}
@@ -1850,7 +1881,7 @@ func (e *transactionalSyncEngine) upsertBatchWithTx(ctx context.Context, localDB
 				sb.WriteString(", ")
 			}
 			sb.WriteString("?")
-			args = append(args, batch[i][col])
+			args = append(args, valueForUTF8MB3Insert(batch[i][col]))
 		}
 		sb.WriteString(")")
 	}
@@ -2180,7 +2211,7 @@ func (e *DefaultSyncEngine) insertBatchToDB(ctx context.Context, targetDB *sqlx.
 				sb.WriteString(", ")
 			}
 			sb.WriteString("?")
-			args = append(args, batch[i][col])
+			args = append(args, valueForUTF8MB3Insert(batch[i][col]))
 		}
 		sb.WriteString(")")
 	}

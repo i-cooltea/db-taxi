@@ -330,7 +330,7 @@ func (bp *BatchProcessor) insertBatchOptimized(
 				sb.WriteString(", ")
 			}
 			sb.WriteString("?")
-			args = append(args, batch[i][col])
+			args = append(args, valueForUTF8MB3Insert(batch[i][col]))
 		}
 		sb.WriteString(")")
 	}
@@ -512,7 +512,7 @@ func (bp *BatchProcessor) upsertBatchOptimized(
 				sb.WriteString(", ")
 			}
 			sb.WriteString("?")
-			args = append(args, batch[i][col])
+			args = append(args, valueForUTF8MB3Insert(batch[i][col]))
 		}
 		sb.WriteString(")")
 	}

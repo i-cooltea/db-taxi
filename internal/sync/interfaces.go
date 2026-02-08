@@ -91,6 +91,9 @@ type SyncManager interface {
 	// Requirement 3.3: Configure table sync rules (full/incremental mode)
 	SetTableSyncMode(ctx context.Context, mappingID string, syncMode SyncMode) error
 
+	// ReorderTableMappings updates the sync order of table mappings by mapping IDs (order of IDs = execution order)
+	ReorderTableMappings(ctx context.Context, syncConfigID string, mappingIDs []string) error
+
 	// GetJobProgress returns the current progress of a sync job
 	// Requirement 5.1: Real-time display of sync progress and status
 	GetJobProgress(ctx context.Context, jobID string) (*JobSummary, error)
@@ -283,10 +286,12 @@ type Repository interface {
 
 // TableSchema represents database table schema information
 type TableSchema struct {
-	Name    string        `json:"name"`
-	Columns []*ColumnInfo `json:"columns"`
-	Indexes []*IndexInfo  `json:"indexes"`
-	Keys    []*KeyInfo    `json:"keys"`
+	Name           string        `json:"name"`
+	Columns        []*ColumnInfo `json:"columns"`
+	Indexes        []*IndexInfo  `json:"indexes"`
+	Keys           []*KeyInfo    `json:"keys"`
+	TableCharset   string        `json:"table_charset,omitempty"`   // e.g. utf8mb4, from source table
+	TableCollation string        `json:"table_collation,omitempty"` // e.g. utf8mb4_unicode_ci
 }
 
 // ColumnInfo represents table column information
@@ -296,6 +301,8 @@ type ColumnInfo struct {
 	Nullable     bool   `json:"nullable"`
 	DefaultValue string `json:"default_value,omitempty"`
 	Extra        string `json:"extra,omitempty"`
+	CharacterSet string `json:"character_set,omitempty"` // for string columns, from source
+	Collation    string `json:"collation,omitempty"`     // for string columns, from source
 }
 
 // IndexInfo represents table index information

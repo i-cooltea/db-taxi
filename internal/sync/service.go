@@ -593,6 +593,7 @@ func (s *ConnectionManagerService) buildRemoteDSNWithDB(config *ConnectionConfig
 		AllowNativePasswords: true,
 		ParseTime:            true,
 		Loc:                  time.UTC,
+		Params:               map[string]string{"charset": "utf8mb4"},
 	}
 
 	// Configure SSL
@@ -770,12 +771,13 @@ func (s *SyncManagerService) CreateSyncConfig(ctx context.Context, config *SyncC
 		return fmt.Errorf("failed to create sync config: %w", err)
 	}
 
-	// Create table mappings
-	for _, mapping := range config.Tables {
+	// Create table mappings (order preserved by sort_order)
+	for i, mapping := range config.Tables {
 		if mapping.ID == "" {
 			mapping.ID = uuid.New().String()
 		}
 		mapping.SyncConfigID = config.ID
+		mapping.SortOrder = i
 		mapping.CreatedAt = now
 		mapping.UpdatedAt = now
 
@@ -1224,6 +1226,10 @@ func (s *SyncManagerService) AddTableMapping(ctx context.Context, syncConfigID s
 		mapping.ID = uuid.New().String()
 	}
 
+	// Set sort_order to append at end
+	existing, _ := s.repo.GetTableMappings(ctx, syncConfigID)
+	mapping.SortOrder = len(existing)
+
 	// Set sync config ID and timestamps
 	mapping.SyncConfigID = syncConfigID
 	now := time.Now()
@@ -1366,6 +1372,44 @@ func (s *SyncManagerService) SetTableSyncMode(ctx context.Context, mappingID str
 	return nil
 }
 
+// ReorderTableMappings updates the sync order of table mappings (order of mappingIDs = execution order)
+func (s *SyncManagerService) ReorderTableMappings(ctx context.Context, syncConfigID string, mappingIDs []string) error {
+	if len(mappingIDs) == 0 {
+		return nil
+	}
+
+	mappings, err := s.repo.GetTableMappings(ctx, syncConfigID)
+	if err != nil {
+		return fmt.Errorf("failed to get table mappings: %w", err)
+	}
+
+	byID := make(map[string]*TableMapping)
+	for _, m := range mappings {
+		byID[m.ID] = m
+	}
+
+	for i, id := range mappingIDs {
+		m, ok := byID[id]
+		if !ok {
+			return fmt.Errorf("table mapping not found: %s", id)
+		}
+		if m.SortOrder == i {
+			continue
+		}
+		m.SortOrder = i
+		if err := s.repo.UpdateTableMapping(ctx, id, m); err != nil {
+			return fmt.Errorf("failed to update table mapping order: %w", err)
+		}
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"sync_config_id": syncConfigID,
+		"count":          len(mappingIDs),
+	}).Info("Table mappings reordered successfully")
+
+	return nil
+}
+
 // validateTableMapping validates a table mapping configuration
 func (s *SyncManagerService) validateTableMapping(mapping *TableMapping) error {
 	if mapping.SourceTable == "" {
@@ -1410,9 +1454,10 @@ func (s *SyncManagerService) updateTableMappings(ctx context.Context, syncConfig
 		}
 	}
 
-	// Update existing and create new mappings
+	// Update existing and create new mappings (order = index in newMappings)
 	now := time.Now()
-	for _, mapping := range newMappings {
+	for i, mapping := range newMappings {
+		mapping.SortOrder = i
 		if mapping.ID == "" {
 			// New mapping
 			mapping.ID = uuid.New().String()
@@ -1479,6 +1524,7 @@ func (s *SyncManagerService) buildRemoteDSNWithDB(config *ConnectionConfig, dbNa
 		AllowNativePasswords: true,
 		ParseTime:            true,
 		Loc:                  time.UTC,
+		Params:               map[string]string{"charset": "utf8mb4"},
 	}
 
 	// Configure SSL
