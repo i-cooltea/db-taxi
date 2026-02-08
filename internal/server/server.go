@@ -206,6 +206,7 @@ func (s *Server) registerRoutes() {
 				{
 					jobs.GET("", s.getSyncJobs)
 					jobs.POST("", s.startSyncJob)
+					jobs.GET("/progress/stream", s.streamSyncJobProgress) // SSE: must be before /:id
 					jobs.GET("/:id", s.getSyncJob)
 					jobs.POST("/:id/stop", s.stopSyncJob)
 					jobs.POST("/:id/cancel", s.cancelSyncJob)
@@ -1502,6 +1503,54 @@ func (s *Server) getSyncJobProgress(c *gin.Context) {
 		"success": true,
 		"data":    progress,
 	})
+}
+
+// streamSyncJobProgress streams running job progress via Server-Sent Events (SSE).
+// 进度通过 SSE 实时推送给前端，包含表总数进度与当前表行级进度（table_progress / current_table）。
+func (s *Server) streamSyncJobProgress(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
+	c.Writer.Flush()
+
+	sendProgress := func() {
+		jobs, err := s.syncManager.GetSyncManager().GetActiveJobs(c.Request.Context())
+		if err != nil {
+			s.logger.WithError(err).Error("Failed to get active jobs for SSE")
+			return
+		}
+		// 通过 SSE 返回进度：data 为运行中任务列表，含 completed_tables/total_tables、table_progress、current_table 等
+		c.SSEvent("progress", gin.H{
+			"type": "progress",
+			"data": jobs,
+			"ts":   time.Now().UnixMilli(),
+		})
+		c.Writer.Flush()
+	}
+
+	sendProgress()
+	// 500ms 推送一次，便于当前表行级进度平滑更新
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	ctx := c.Request.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			sendProgress()
+		}
+	}
 }
 
 func (s *Server) getActiveSyncJobs(c *gin.Context) {

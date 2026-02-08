@@ -765,6 +765,9 @@ func (e *DefaultSyncEngine) syncAllData(ctx context.Context, remoteDB *sqlx.DB, 
 		return fmt.Errorf("failed to get row count: %w", err)
 	}
 
+	// Report current table total so UI can show progress (e.g. "0 / N 行")
+	ReportTableProgress(ctx, mapping.SourceTable, TableStatusRunning, 0, totalRows)
+
 	// For large tables (>10,000 rows), use optimized batch processor
 	// Requirement 7.3: Process large tables in batches to avoid long locks
 	// Requirement 8.1: Use batch operations to improve efficiency
@@ -849,6 +852,7 @@ func (e *DefaultSyncEngine) syncAllData(ctx context.Context, remoteDB *sqlx.DB, 
 			processedRows += int64(len(batch))
 			batch = batch[:0] // Clear batch
 
+			ReportTableProgress(ctx, mapping.SourceTable, TableStatusRunning, processedRows, totalRows)
 			e.logger.WithFields(logrus.Fields{
 				"source_table":   mapping.SourceTable,
 				"processed_rows": processedRows,
@@ -2113,6 +2117,8 @@ func (e *DefaultSyncEngine) syncAllDataBetweenDBs(ctx context.Context, sourceDB 
 		return fmt.Errorf("failed to get row count: %w", err)
 	}
 
+	ReportTableProgress(ctx, mapping.SourceTable, TableStatusRunning, 0, totalRows)
+
 	// Determine batch size
 	batchSize := 1000
 	if options != nil && options.BatchSize > 0 {
@@ -2157,6 +2163,7 @@ func (e *DefaultSyncEngine) syncAllDataBetweenDBs(ctx context.Context, sourceDB 
 				return fmt.Errorf("failed to insert batch: %w", err)
 			}
 			processedRows += int64(len(batch))
+			ReportTableProgress(ctx, mapping.SourceTable, TableStatusRunning, processedRows, totalRows)
 			batch = batch[:0] // Clear batch
 		}
 	}
@@ -2167,6 +2174,7 @@ func (e *DefaultSyncEngine) syncAllDataBetweenDBs(ctx context.Context, sourceDB 
 			return fmt.Errorf("failed to insert final batch: %w", err)
 		}
 		processedRows += int64(len(batch))
+		ReportTableProgress(ctx, mapping.SourceTable, TableStatusRunning, processedRows, totalRows)
 	}
 
 	e.logger.WithFields(logrus.Fields{

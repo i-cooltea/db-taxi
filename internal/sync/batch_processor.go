@@ -102,6 +102,8 @@ func (bp *BatchProcessor) ProcessLargeTableSync(
 	}
 	result.TotalRows = totalRows
 
+	ReportTableProgress(ctx, mapping.SourceTable, TableStatusRunning, 0, totalRows)
+
 	// Determine optimal batch size based on table size and available memory
 	optimalBatchSize := bp.calculateOptimalBatchSize(totalRows)
 	bp.logger.WithFields(logrus.Fields{
@@ -148,6 +150,8 @@ func (bp *BatchProcessor) ProcessLargeTableSync(
 		} else {
 			result.ProcessedRows += int64(len(batch))
 		}
+
+		ReportTableProgress(ctx, mapping.SourceTable, TableStatusRunning, result.ProcessedRows, totalRows)
 
 		batchDuration := time.Since(batchStart)
 		batchTimes = append(batchTimes, batchDuration)

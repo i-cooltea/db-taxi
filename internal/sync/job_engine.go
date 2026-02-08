@@ -564,6 +564,11 @@ func (w *JobWorker) executeJob(ctx context.Context, job *SyncJob) error {
 			w.logger.WithError(err).WithField("job_id", job.ID).Warn("Failed to update table progress")
 		}
 
+		// 注入表进度 reporter，供 sync 引擎在同步过程中上报当前表行级进度（供 SSE 推送给前端）
+		ctx = WithTableProgressReporter(ctx, func(tableName string, status TableSyncStatus, processed, total int64) {
+			_ = w.engine.monitoring.UpdateTableProgress(ctx, job.ID, tableName, status, processed, total, "")
+		})
+
 		// Sync the table using sync engine
 		tableErr := w.engine.syncEngine.SyncTable(ctx, job, tableMapping)
 

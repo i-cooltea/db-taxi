@@ -72,13 +72,17 @@
           </div>
           
           <div class="job-progress">
-            <div class="progress-info">
-              <span>进度: {{ job.completed_tables }}/{{ job.total_tables }} 表</span>
-              <span>{{ job.progress_percent?.toFixed(1) || 0 }}%</span>
-            </div>
-            <div class="progress-bar">
-              <div class="progress-fill" :style="{ width: (job.progress_percent || 0) + '%' }"></div>
-            </div>
+            <ProgressBar
+              label="表总数进度"
+              :percent="job.total_tables ? (job.completed_tables / job.total_tables) * 100 : 0"
+              :subtitle="`${job.completed_tables} / ${job.total_tables} 张表`"
+            />
+            <ProgressBar
+              label="当前表处理进度"
+              :percent="currentTablePercent(job)"
+              :subtitle="currentTableSubtitle(job)"
+              :indeterminate="currentTableIndeterminate(job)"
+            />
           </div>
 
           <div class="job-stats">
@@ -257,6 +261,7 @@ import {
 } from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
 import Toast from '../components/Toast.vue'
+import ProgressBar from '../components/ProgressBar.vue'
 
 const syncStore = useSyncStore()
 
@@ -274,6 +279,7 @@ const showStartSyncModal = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const refreshInterval = ref(null)
+const progressEventSource = ref(null) // SSE for running job progress
 const expandedLogs = ref(new Set())
 const toast = ref({
   show: false,
@@ -285,18 +291,53 @@ const toast = ref({
 onMounted(async () => {
   console.log('Monitoring component mounted')
   await loadAllData()
-  // Auto-refresh every 5 seconds
-  refreshInterval.value = setInterval(async () => {
-    await refreshActiveJobs()
-  }, 5000)
+  startProgressStream()
 })
 
 onUnmounted(() => {
   console.log('Monitoring component unmounted')
+  stopProgressStream()
   if (refreshInterval.value) {
     clearInterval(refreshInterval.value)
   }
 })
+
+// 进度数据仅通过 SSE 获取：/api/sync/jobs/progress/stream 推送 progress 事件，含表总数进度与当前表行级进度
+function startProgressStream() {
+  if (progressEventSource.value) return
+  const url = '/api/sync/jobs/progress/stream'
+  const es = new EventSource(url)
+  progressEventSource.value = es
+
+  es.addEventListener('progress', (e) => {
+    try {
+      const payload = JSON.parse(e.data)
+      // SSE 返回 { type: 'progress', data: jobs, ts }，表/行进度在 job.table_progress、job.current_table 等
+      const jobs = payload?.data ?? []
+      const hadJobs = activeJobs.value.length > 0
+      activeJobs.value = jobs
+      if (hadJobs && jobs.length === 0) {
+        loadStats()
+        loadHistory()
+      }
+    } catch (err) {
+      console.error('Failed to parse progress SSE data:', err)
+    }
+  })
+
+  es.onerror = () => {
+    es.close()
+    progressEventSource.value = null
+    setTimeout(startProgressStream, 3000)
+  }
+}
+
+function stopProgressStream() {
+  if (progressEventSource.value) {
+    progressEventSource.value.close()
+    progressEventSource.value = null
+  }
+}
 
 async function loadAllData() {
   console.log('Loading all monitoring data...')
@@ -581,6 +622,35 @@ function formatNumber(num) {
   return num.toLocaleString()
 }
 
+/** 当前正在同步的表的进度百分比 (0–100)，无当前表或无总量时返回 0 */
+function currentTablePercent(job) {
+  const table = getCurrentTableProgress(job)
+  if (!table || table.total_rows <= 0) return 0
+  return Math.min(100, (table.processed_rows / table.total_rows) * 100)
+}
+
+/** 当前表进度副标题：表名 + 行数 */
+function currentTableSubtitle(job) {
+  const table = getCurrentTableProgress(job)
+  if (!table) return job.current_table ? `正在同步: ${job.current_table}` : '暂无当前表'
+  return `${table.table_name || job.current_table}: ${formatNumber(table.processed_rows)} / ${formatNumber(table.total_rows)} 行`
+}
+
+/** 是否有当前表但无总量（显示 indeterminate） */
+function currentTableIndeterminate(job) {
+  const table = getCurrentTableProgress(job)
+  return !!(job.current_table && table && table.total_rows <= 0 && table.status === 'running')
+}
+
+/** 从 job 中取出当前正在同步的表进度信息 */
+function getCurrentTableProgress(job) {
+  if (!job?.table_progress) return null
+  const name = job.current_table
+  if (name && job.table_progress[name]) return job.table_progress[name]
+  const running = Object.values(job.table_progress).find(t => t.status === 'running')
+  return running || null
+}
+
 function formatTime(timestamp) {
   if (!timestamp) return '-'
   const date = new Date(timestamp)
@@ -816,19 +886,38 @@ function nextPage() {
 /* Progress Bar */
 .job-progress {
   margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.progress-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 0.5rem;
 }
 
 .progress-info {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 0.5rem;
   font-size: 0.875rem;
-  color: #6b7280;
+  color: #64748b;
+}
+
+.progress-percent {
+  font-weight: 600;
+  color: #1e40af;
+  min-width: 3.5em;
+  text-align: right;
 }
 
 .progress-bar {
-  height: 8px;
-  background: #e5e7eb;
+  height: 10px;
+  background: #e2e8f0;
   border-radius: 9999px;
   overflow: hidden;
 }
@@ -836,7 +925,7 @@ function nextPage() {
 .progress-fill {
   height: 100%;
   background: linear-gradient(90deg, #3b82f6, #2563eb);
-  transition: width 0.3s ease;
+  transition: width 0.35s ease;
 }
 
 /* Job Stats */

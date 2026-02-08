@@ -132,6 +132,11 @@ func (w *JobWorker) executeJobWithRecovery(ctx context.Context, job *SyncJob) er
 			w.engine.logger.WithError(err).WithField("job_id", job.ID).Warn("Failed to update table progress")
 		}
 
+		// Inject table progress reporter so sync engine can report current table row progress
+		ctx = WithTableProgressReporter(ctx, func(tableName string, status TableSyncStatus, processed, total int64) {
+			_ = w.engine.monitoring.UpdateTableProgress(ctx, job.ID, tableName, status, processed, total, "")
+		})
+
 		// Sync the table with retry logic
 		var tableErr error
 		retryOperation := func() error {

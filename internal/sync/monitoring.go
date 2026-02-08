@@ -224,6 +224,7 @@ func (m *MonitoringServiceImpl) GetJobProgress(ctx context.Context, jobID string
 		StartTime:       monitor.StartTime,
 		TotalTables:     monitor.TotalTables,
 		CompletedTables: monitor.CompletedTables,
+		CurrentTable:    monitor.CurrentTable,
 		TotalRows:       monitor.TotalRows,
 		ProcessedRows:   monitor.ProcessedRows,
 		ErrorCount:      monitor.ErrorCount,
@@ -472,6 +473,7 @@ func (m *MonitoringServiceImpl) GetActiveJobs(ctx context.Context) ([]*JobSummar
 			StartTime:       monitor.StartTime,
 			TotalTables:     monitor.TotalTables,
 			CompletedTables: monitor.CompletedTables,
+			CurrentTable:    monitor.CurrentTable,
 			TotalRows:       monitor.TotalRows,
 			ProcessedRows:   monitor.ProcessedRows,
 			ErrorCount:      monitor.ErrorCount,
@@ -496,9 +498,11 @@ func (m *MonitoringServiceImpl) GetActiveJobs(ctx context.Context) ([]*JobSummar
 			}
 		}
 
-		// Calculate progress percentage
+		// Calculate progress percentage: by rows when available, otherwise by table count
 		if summary.TotalRows > 0 {
 			summary.ProgressPercent = float64(summary.ProcessedRows) / float64(summary.TotalRows) * 100
+		} else if summary.TotalTables > 0 {
+			summary.ProgressPercent = float64(summary.CompletedTables) / float64(summary.TotalTables) * 100
 		}
 
 		monitor.mutex.RUnlock()

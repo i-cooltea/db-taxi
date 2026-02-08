@@ -226,6 +226,7 @@ type JobSummary struct {
 	Duration        *time.Duration            `json:"duration,omitempty"`
 	TotalTables     int                       `json:"total_tables"`
 	CompletedTables int                       `json:"completed_tables"`
+	CurrentTable    string                    `json:"current_table,omitempty"` // 当前正在同步的表名
 	TotalRows       int64                     `json:"total_rows"`
 	ProcessedRows   int64                     `json:"processed_rows"`
 	ProgressPercent float64                   `json:"progress_percent"`
