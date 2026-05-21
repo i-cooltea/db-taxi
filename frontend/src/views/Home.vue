@@ -26,6 +26,7 @@
       <div class="tab-content">
         <Connections v-if="activeTab === 'connections'" />
         <SyncConfig v-else-if="activeTab === 'sync'" />
+        <TableDiff v-else-if="activeTab === 'diff'" />
         <Monitoring v-else-if="activeTab === 'monitoring'" />
         <ConfigManagement v-else-if="activeTab === 'config'" />
       </div>
@@ -35,17 +36,19 @@
 
 <script setup>
 import { ref } from 'vue'
-import { Truck, Plug, RefreshCw, BarChart3, Settings } from 'lucide-vue-next'
+import { Truck, Plug, RefreshCw, BarChart3, Settings, GitCompareArrows } from 'lucide-vue-next'
 import Connections from './Connections.vue'
 import SyncConfig from './SyncConfig.vue'
 import Monitoring from './Monitoring.vue'
 import ConfigManagement from './ConfigManagement.vue'
+import TableDiff from './TableDiff.vue'
 
 const activeTab = ref('connections')
 
 const tabs = [
   { name: 'connections', icon: Plug, label: '连接管理' },
   { name: 'sync', icon: RefreshCw, label: '同步配置' },
+  { name: 'diff', icon: GitCompareArrows, label: '表对比' },
   { name: 'monitoring', icon: BarChart3, label: '同步监控' },
   { name: 'config', icon: Settings, label: '配置管理' }
 ]

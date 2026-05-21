@@ -4,6 +4,7 @@ import Connections from '../views/Connections.vue'
 import SyncConfig from '../views/SyncConfig.vue'
 import Monitoring from '../views/Monitoring.vue'
 import ConfigManagement from '../views/ConfigManagement.vue'
+import TableDiff from '../views/TableDiff.vue'
 
 const routes = [
   {
@@ -30,6 +31,11 @@ const routes = [
     path: '/config',
     name: 'ConfigManagement',
     component: ConfigManagement
+  },
+  {
+    path: '/diff',
+    name: 'TableDiff',
+    component: TableDiff
   }
 ]
 

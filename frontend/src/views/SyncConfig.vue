@@ -33,19 +33,57 @@
         <p>点击上方"创建同步配置"按钮开始配置数据库同步</p>
       </div>
 
-      <div v-else class="configs-grid">
-        <ConfigCard
-          v-for="config in store.configs"
-          :key="config.id"
-          :config="config"
-          :source-connection="getConnection(config.source_connection_id)"
-          :target-connection="getConnection(config.target_connection_id)"
-          @edit="editConfig"
-          @delete="deleteConfig"
-          @start="startSync"
-          @view-tables="viewTables"
-          @copy="copyConfig"
-        />
+      <div v-else class="configs-list">
+        <table class="config-table">
+          <thead>
+            <tr>
+              <th>名称</th>
+              <th>源连接</th>
+              <th>目标连接</th>
+              <th>同步模式</th>
+              <th>表数量</th>
+              <th>计划</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="config in store.configs" :key="config.id">
+              <td class="config-name-cell">{{ config.name }}</td>
+              <td>{{ getConnection(config.source_connection_id)?.config.name || 'Unknown' }}</td>
+              <td>{{ getConnection(config.target_connection_id)?.config.name || 'Unknown' }}</td>
+              <td>
+                <span :class="['badge', config.sync_mode === 'full' ? 'badge-full' : 'badge-incremental']">
+                  {{ config.sync_mode === 'full' ? '全量同步' : '增量同步' }}
+                </span>
+              </td>
+              <td>{{ config.tables ? config.tables.length : 0 }} 个表</td>
+              <td>{{ config.schedule || '-' }}</td>
+              <td>
+                <span :class="['status-badge', config.enabled ? 'status-enabled' : 'status-disabled']">
+                  {{ config.enabled ? '已启用' : '已禁用' }}
+                </span>
+              </td>
+              <td class="actions-cell">
+                <button class="btn btn-success btn-small" @click="startSync(config)" title="启动同步">
+                  <Play :size="14" />
+                </button>
+                <button class="btn btn-info btn-small" @click="viewTables(config)" title="查看表">
+                  <List :size="14" />
+                </button>
+                <button class="btn btn-secondary btn-small" @click="editConfig(config)" title="编辑">
+                  <Edit2 :size="14" />
+                </button>
+                <button class="btn btn-secondary btn-small" @click="copyConfig(config)" title="复制">
+                  <Copy :size="14" />
+                </button>
+                <button class="btn btn-danger btn-small" @click="deleteConfig(config)" title="删除">
+                  <Trash2 :size="14" />
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -67,9 +105,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { RefreshCw, List, Plus } from 'lucide-vue-next'
+import { RefreshCw, List, Plus, Play, Edit2, Copy, Trash2 } from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
-import ConfigCard from '../components/ConfigCard.vue'
 import ConfigModal from '../components/ConfigModal.vue'
 import TableMappingsModal from '../components/TableMappingsModal.vue'
 
@@ -187,10 +224,58 @@ function closeTablesModal() {
   font-size: 1.5rem;
 }
 
-.configs-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  gap: 1.5rem;
+.configs-list {
+  overflow-x: auto;
+}
+
+.config-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.config-table th,
+.config-table td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid #e1e5f2;
+}
+
+.config-table th {
+  background: #f8f9ff;
+  font-weight: 600;
+  color: #667eea;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.config-table tr:last-child td {
+  border-bottom: none;
+}
+
+.config-table tr:hover td {
+  background: #f8f9ff;
+}
+
+.config-name-cell {
+  font-weight: 600;
+  color: #333;
+}
+
+.actions-cell {
+  white-space: nowrap;
+}
+
+.actions-cell .btn {
+  margin-right: 0.25rem;
+}
+
+.actions-cell .btn:last-child {
+  margin-right: 0;
 }
 
 .loading {
@@ -257,5 +342,47 @@ function closeTablesModal() {
 @keyframes slideIn {
   from { transform: translateY(-20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.badge-full {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.badge-incremental {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.status-enabled {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-disabled {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.btn-small {
+  padding: 0.35rem 0.5rem;
 }
 </style>

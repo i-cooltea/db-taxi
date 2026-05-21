@@ -22,6 +22,7 @@ type Manager struct {
 	mappingManager     MappingManager
 	jobEngine          JobEngine
 	syncEngine         SyncEngine
+	diffTaskManager    *DiffTaskManager
 	migrationsExecuted bool // Tracks whether migrations have been executed
 }
 
@@ -63,6 +64,7 @@ func NewManager(cfg *config.Config, db *sqlx.DB, logger *logrus.Logger) (*Manage
 		mappingManager:    mappingManager,
 		syncEngine:        syncEngine,
 		jobEngine:         jobEngine,
+		diffTaskManager:   NewDiffTaskManager(repo, logger),
 	}
 
 	logger.Info("Sync system manager initialized successfully")
@@ -123,6 +125,11 @@ func (m *Manager) GetJobEngine() JobEngine {
 // GetSyncEngine returns the sync engine
 func (m *Manager) GetSyncEngine() SyncEngine {
 	return m.syncEngine
+}
+
+// GetDiffTaskManager returns the diff task manager
+func (m *Manager) GetDiffTaskManager() *DiffTaskManager {
+	return m.diffTaskManager
 }
 
 // Shutdown gracefully shuts down the sync system

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"time"
 
@@ -21,6 +22,7 @@ type SyncManagerInterface interface {
 	GetMappingManager() sync.MappingManager
 	GetJobEngine() sync.JobEngine
 	GetSyncEngine() sync.SyncEngine
+	GetDiffTaskManager() *sync.DiffTaskManager
 	Initialize(ctx context.Context) error
 	Shutdown(ctx context.Context) error
 	HealthCheck(ctx context.Context) error
@@ -36,10 +38,17 @@ type Server struct {
 	dbPool      *database.ConnectionPool
 	explorer    *database.SchemaExplorer
 	syncManager SyncManagerInterface
+	// assetFS when set serves static files from embedded FS (e.g. for Wails desktop)
+	assetFS fs.FS
 }
 
-// New creates a new server instance
+// New creates a new server instance. Use NewWithAssetFS to serve static from embedded FS (e.g. Wails).
 func New(cfg *config.Config) *Server {
+	return NewWithAssetFS(cfg, nil)
+}
+
+// NewWithAssetFS creates a server that serves static from the given fs.FS when non-nil (e.g. embed for Wails).
+func NewWithAssetFS(cfg *config.Config, assetFS fs.FS) *Server {
 	// Set Gin mode based on log level
 	if cfg.Logging.Level == "debug" {
 		gin.SetMode(gin.DebugMode)
@@ -68,9 +77,10 @@ func New(cfg *config.Config) *Server {
 	engine.Use(CORSMiddleware())
 
 	server := &Server{
-		config: cfg,
-		engine: engine,
-		logger: logger,
+		config:  cfg,
+		engine:  engine,
+		logger:  logger,
+		assetFS: assetFS,
 	}
 
 	// Initialize database connection
@@ -220,7 +230,14 @@ func (s *Server) registerRoutes() {
 				sync.GET("/status", s.getSyncStatus)
 				sync.GET("/stats", s.getSyncStats)
 
-				// Config management routes
+				// Diff routes
+					diff := sync.Group("/diff")
+					{
+						diff.POST("/compare", s.startDiffCompare)
+						diff.GET("/:task_id", s.getDiffTask)
+					}
+
+					// Config management routes
 				sync.GET("/config/export", s.exportConfig)
 				sync.POST("/config/import", s.importConfig)
 				sync.POST("/config/validate", s.validateConfig)
@@ -229,20 +246,27 @@ func (s *Server) registerRoutes() {
 		}
 	}
 
-	// Serve static files
-	s.engine.Static("/static", "./static")
-	// Serve assets directory directly (for frontend resource references)
-	s.engine.Static("/assets", "./static/assets")
-
-	// Serve index.html at root path
-	s.engine.GET("/", func(c *gin.Context) {
-		c.File("./static/index.html")
-	})
-
-	// Handle client-side routing - serve index.html for all other routes
-	s.engine.NoRoute(func(c *gin.Context) {
-		c.File("./static/index.html")
-	})
+	// Serve static files (from embedded FS when set, e.g. Wails desktop)
+	if s.assetFS != nil {
+		// SPA: index.html at / and for NoRoute, assets at /assets
+		indexHTML, _ := fs.ReadFile(s.assetFS, "index.html")
+		s.engine.GET("/", func(c *gin.Context) {
+			c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTML)
+		})
+		s.engine.StaticFS("/assets", http.FS(s.assetFS))
+		s.engine.NoRoute(func(c *gin.Context) {
+			c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTML)
+		})
+	} else {
+		s.engine.Static("/static", "./static")
+		s.engine.Static("/assets", "./static/assets")
+		s.engine.GET("/", func(c *gin.Context) {
+			c.File("./static/index.html")
+		})
+		s.engine.NoRoute(func(c *gin.Context) {
+			c.File("./static/index.html")
+		})
+	}
 }
 
 // healthCheck handles health check requests
@@ -1822,5 +1846,87 @@ func (s *Server) backupConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    backup,
+	})
+}
+
+// Diff handlers
+
+func (s *Server) startDiffCompare(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	var req sync.DiffCompareRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	taskManager := s.syncManager.GetDiffTaskManager()
+	if taskManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Diff task manager not available",
+		})
+		return
+	}
+
+	taskID, err := taskManager.StartTask(c.Request.Context(), &req)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to start diff task")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"task_id": taskID,
+			"status":  "running",
+		},
+	})
+}
+
+func (s *Server) getDiffTask(c *gin.Context) {
+	if s.syncManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Sync system not available",
+		})
+		return
+	}
+
+	taskID := c.Param("task_id")
+	taskManager := s.syncManager.GetDiffTaskManager()
+	if taskManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Diff task manager not available",
+		})
+		return
+	}
+
+	task, found := taskManager.GetTask(taskID)
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"error":   "Diff task not found",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    task,
 	})
 }
