@@ -433,7 +433,8 @@ select.form-control {
 .status-dot.connected { background: var(--success); }
 .status-dot.success { background: var(--success); }
 .status-dot.error { background: var(--error); }
-.status-dot.disconnected { background: var(--text-tertiary); }
+.status-dot.disconnected { background: var(--error); }
+.status-dot.unknown { background: var(--warning); }
 .status-dot.warning { background: var(--warning); }
 .status-dot.pending { background: var(--text-tertiary); }
 .status-dot.completed { background: var(--success); }

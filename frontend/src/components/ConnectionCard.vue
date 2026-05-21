@@ -6,9 +6,9 @@
       </div>
       <div class="connection-info">
         <h3>{{ connection.config.name }}</h3>
-        <span :class="['status-badge', connection.status]">
-          <span :class="['status-dot', connection.status]"></span>
-          {{ getStatusText(connection.status) }}
+        <span :class="['status-badge', statusClass]">
+          <span :class="['status-dot', statusClass]"></span>
+          {{ statusText }}
         </span>
       </div>
     </div>
@@ -47,19 +47,25 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { Database, Activity, Edit2, Trash2, Loader2 } from 'lucide-vue-next'
 
-defineProps({
+const props = defineProps({
   connection: { type: Object, required: true },
   testing: { type: Boolean, default: false }
 })
 
 defineEmits(['edit', 'delete', 'test'])
 
-function getStatusText(status) {
-  const map = { connected: '已连接', disconnected: '未连接', error: '错误' }
-  return map[status] || status
-}
+const statusClass = computed(() => {
+  if (!props.connection.status) return 'unknown'
+  return props.connection.status.connected ? 'connected' : 'disconnected'
+})
+
+const statusText = computed(() => {
+  if (!props.connection.status) return '未知'
+  return props.connection.status.connected ? '已连接' : '未连接'
+})
 </script>
 
 <style scoped>
@@ -115,9 +121,14 @@ function getStatusText(status) {
   color: var(--success);
 }
 
-.status-badge.error {
+.status-badge.disconnected {
   background: var(--error-light);
   color: var(--error);
+}
+
+.status-badge.unknown {
+  background: var(--warning-light);
+  color: var(--warning);
 }
 
 .connection-details {
