@@ -1,40 +1,51 @@
 <template>
   <div>
-
+    <!-- Alerts -->
     <div v-if="error" class="alert alert-error">
-      {{ error }}
+      <AlertCircle :size="18" />
+      <span>{{ error }}</span>
       <button class="alert-close" @click="error = null">&times;</button>
     </div>
 
     <div v-if="successMessage" class="alert alert-success">
-      {{ successMessage }}
+      <CheckCircle :size="18" />
+      <span>{{ successMessage }}</span>
       <button class="alert-close" @click="successMessage = null">&times;</button>
     </div>
 
+    <!-- Page Header -->
+    <div class="page-header">
+      <h1>同步配置</h1>
+      <button class="btn btn-primary" @click="showCreateModal">
+        <Plus :size="16" />
+        <span>创建配置</span>
+      </button>
+    </div>
+
+    <!-- Content Card -->
     <div class="card">
-      <div class="card-header">
-        <h2><List :size="20" class="inline-icon" /> 同步配置列表</h2>
-        <button class="btn" @click="showCreateModal">
-          <Plus :size="18" /> 创建同步配置
-        </button>
+      <!-- Loading -->
+      <div v-if="store.loading" class="loading-state">
+        <div class="loading-spinner"></div>
+        <p class="text-secondary">正在加载同步配置...</p>
       </div>
 
-      <div v-if="store.loading" class="loading">
-        正在加载同步配置...
-      </div>
-
+      <!-- Error -->
       <div v-else-if="store.error" class="alert alert-error">
-        {{ store.error }}
+        <AlertCircle :size="18" />
+        <span>{{ store.error }}</span>
       </div>
 
+      <!-- Empty State -->
       <div v-else-if="store.configs.length === 0" class="empty-state">
-        <RefreshCw class="empty-icon" :size="64" />
+        <RefreshCw :size="48" class="empty-state-icon" />
         <h3>还没有配置任何同步任务</h3>
-        <p>点击上方"创建同步配置"按钮开始配置数据库同步</p>
+        <p>点击上方"创建配置"按钮开始配置数据库同步</p>
       </div>
 
-      <div v-else class="configs-list">
-        <table class="config-table">
+      <!-- Config Table -->
+      <div v-else class="table-container">
+        <table class="data-table">
           <thead>
             <tr>
               <th>名称</th>
@@ -44,42 +55,44 @@
               <th>表数量</th>
               <th>计划</th>
               <th>状态</th>
-              <th>操作</th>
+              <th style="width: 200px;">操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="config in store.configs" :key="config.id">
-              <td class="config-name-cell">{{ config.name }}</td>
+              <td class="font-medium">{{ config.name }}</td>
               <td>{{ getConnection(config.source_connection_id)?.config.name || 'Unknown' }}</td>
               <td>{{ getConnection(config.target_connection_id)?.config.name || 'Unknown' }}</td>
               <td>
-                <span :class="['badge', config.sync_mode === 'full' ? 'badge-full' : 'badge-incremental']">
+                <span :class="['badge', config.sync_mode === 'full' ? 'badge-info' : 'badge-success']">
                   {{ config.sync_mode === 'full' ? '全量同步' : '增量同步' }}
                 </span>
               </td>
               <td>{{ config.tables ? config.tables.length : 0 }} 个表</td>
-              <td>{{ config.schedule || '-' }}</td>
+              <td class="text-secondary">{{ config.schedule || '-' }}</td>
               <td>
-                <span :class="['status-badge', config.enabled ? 'status-enabled' : 'status-disabled']">
+                <span :class="['badge', config.enabled ? 'badge-success' : 'badge-error']">
                   {{ config.enabled ? '已启用' : '已禁用' }}
                 </span>
               </td>
-              <td class="actions-cell">
-                <button class="btn btn-success btn-small" @click="startSync(config)" title="启动同步">
-                  <Play :size="14" />
-                </button>
-                <button class="btn btn-info btn-small" @click="viewTables(config)" title="查看表">
-                  <List :size="14" />
-                </button>
-                <button class="btn btn-secondary btn-small" @click="editConfig(config)" title="编辑">
-                  <Edit2 :size="14" />
-                </button>
-                <button class="btn btn-secondary btn-small" @click="copyConfig(config)" title="复制">
-                  <Copy :size="14" />
-                </button>
-                <button class="btn btn-danger btn-small" @click="deleteConfig(config)" title="删除">
-                  <Trash2 :size="14" />
-                </button>
+              <td>
+                <div class="action-buttons">
+                  <button class="btn btn-sm btn-ghost" @click="startSync(config)" title="启动同步">
+                    <Play :size="14" />
+                  </button>
+                  <button class="btn btn-sm btn-ghost" @click="viewTables(config)" title="查看表">
+                    <List :size="14" />
+                  </button>
+                  <button class="btn btn-sm btn-ghost" @click="editConfig(config)" title="编辑">
+                    <Edit2 :size="14" />
+                  </button>
+                  <button class="btn btn-sm btn-ghost" @click="copyConfig(config)" title="复制">
+                    <Copy :size="14" />
+                  </button>
+                  <button class="btn btn-sm btn-ghost text-error" @click="deleteConfig(config)" title="删除">
+                    <Trash2 :size="14" />
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -87,6 +100,7 @@
       </div>
     </div>
 
+    <!-- Modals -->
     <ConfigModal
       v-if="showModal"
       :config="activeConfig"
@@ -105,16 +119,15 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { RefreshCw, List, Plus, Play, Edit2, Copy, Trash2 } from 'lucide-vue-next'
+import { RefreshCw, Plus, Play, Edit2, Copy, Trash2, List, AlertCircle, CheckCircle } from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
 import ConfigModal from '../components/ConfigModal.vue'
 import TableMappingsModal from '../components/TableMappingsModal.vue'
 
 const store = useSyncStore()
-
 const showModal = ref(false)
-const editingConfig = ref(null) // null 表示创建模式，非空表示编辑已有配置
-const activeConfig = ref(null)  // 传给弹窗用于预填表单的数据（编辑或复制）
+const editingConfig = ref(null)
+const activeConfig = ref(null)
 const error = ref(null)
 const successMessage = ref(null)
 const showTablesModal = ref(false)
@@ -141,15 +154,8 @@ function editConfig(config) {
 }
 
 function copyConfig(config) {
-  // 基于当前配置生成一份用于创建的新配置：
-  // - 去掉 id 等后端字段
-  // - 名称增加「副本」后缀，避免与原配置混淆
   const { id, created_at, updated_at, ...rest } = config
-  activeConfig.value = {
-    ...rest,
-    name: `${config.name} - 副本`
-  }
-  // 保持 editingConfig 为 null，这样保存时走创建逻辑
+  activeConfig.value = { ...rest, name: `${config.name} - 副本` }
   editingConfig.value = null
   showModal.value = true
 }
@@ -188,14 +194,9 @@ async function startSync(config) {
       error.value = null
       const job = await store.startSync(config.id)
       successMessage.value = `同步任务已成功启动！任务ID: ${job.id}`
-      
-      // 自动清除成功消息
-      setTimeout(() => {
-        successMessage.value = null
-      }, 5000)
+      setTimeout(() => { successMessage.value = null }, 5000)
     } catch (err) {
       error.value = `启动同步任务失败: ${err.message}`
-      console.error('Failed to start sync:', err)
     }
   }
 }
@@ -212,177 +213,37 @@ function closeTablesModal() {
 </script>
 
 <style scoped>
-.card-header {
+.page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--space-5);
 }
 
-.card h2 {
-  color: #667eea;
-  font-size: 1.5rem;
-}
-
-.configs-list {
-  overflow-x: auto;
-}
-
-.config-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: white;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.config-table th,
-.config-table td {
-  padding: 1rem;
-  text-align: left;
-  border-bottom: 1px solid #e1e5f2;
-}
-
-.config-table th {
-  background: #f8f9ff;
+.page-header h1 {
+  font-size: 24px;
   font-weight: 600;
-  color: #667eea;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
-.config-table tr:last-child td {
-  border-bottom: none;
-}
-
-.config-table tr:hover td {
-  background: #f8f9ff;
-}
-
-.config-name-cell {
-  font-weight: 600;
-  color: #333;
-}
-
-.actions-cell {
-  white-space: nowrap;
-}
-
-.actions-cell .btn {
-  margin-right: 0.25rem;
-}
-
-.actions-cell .btn:last-child {
-  margin-right: 0;
-}
-
-.loading {
-  text-align: center;
-  padding: 2rem;
-  color: #666;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 3rem;
-  color: #666;
-}
-
-.empty-icon {
-  color: #667eea;
-  opacity: 0.5;
-  margin-bottom: 1rem;
-}
-
-.inline-icon {
-  display: inline-block;
-  vertical-align: middle;
-  margin-right: 0.25rem;
-}
-
-.alert {
-  padding: 1rem;
-  border-radius: 5px;
-  margin-bottom: 1rem;
+.loading-state {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  animation: slideIn 0.3s;
+  padding: var(--space-7);
+  gap: var(--space-4);
 }
 
-.alert-success {
-  background: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
+.action-buttons {
+  display: flex;
+  gap: var(--space-1);
 }
 
-.alert-error {
-  background: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
-}
-
-.alert-close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: inherit;
-  opacity: 0.7;
-  padding: 0;
-  line-height: 1;
-}
-
-.alert-close:hover {
-  opacity: 1;
-}
-
-@keyframes slideIn {
-  from { transform: translateY(-20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-.badge {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-.badge-full {
-  background: #e3f2fd;
-  color: #1976d2;
-}
-
-.badge-incremental {
-  background: #f3e5f5;
-  color: #7b1fa2;
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-.status-enabled {
-  background: #d4edda;
-  color: #155724;
-}
-
-.status-disabled {
-  background: #f8d7da;
-  color: #721c24;
-}
-
-.btn-small {
-  padding: 0.35rem 0.5rem;
+@media (max-width: 768px) {
+  .table-container {
+    margin: 0 calc(-1 * var(--space-4));
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
 }
 </style>

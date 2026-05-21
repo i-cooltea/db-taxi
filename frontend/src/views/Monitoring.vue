@@ -1,114 +1,121 @@
 <template>
   <div>
-    <!-- Toast Notification -->
-    <Toast 
-      :show="toast.show" 
-      :message="toast.message" 
-      :type="toast.type"
-      @close="toast.show = false"
-    />
+    <!-- Toast -->
+    <Toast :show="toast.show" :message="toast.message" :type="toast.type" @close="toast.show = false" />
 
-    <!-- Statistics Overview -->
+    <!-- Page Header -->
+    <div class="page-header">
+      <h1>同步监控</h1>
+    </div>
+
+    <!-- Stats Grid -->
     <div class="stats-grid">
       <div class="stat-card">
-        <BarChart3 class="stat-icon" :size="32" />
-        <div class="stat-content">
+        <div class="stat-icon" style="background: var(--accent-light); color: var(--accent-primary);">
+          <BarChart3 :size="20" />
+        </div>
+        <div class="stat-info">
           <div class="stat-value">{{ stats.total_jobs || 0 }}</div>
           <div class="stat-label">总任务数</div>
         </div>
       </div>
-      <div class="stat-card success">
-        <CheckCircle class="stat-icon" :size="32" />
-        <div class="stat-content">
+      <div class="stat-card">
+        <div class="stat-icon" style="background: var(--success-light); color: var(--success);">
+          <CheckCircle :size="20" />
+        </div>
+        <div class="stat-info">
           <div class="stat-value">{{ stats.completed_jobs || 0 }}</div>
           <div class="stat-label">已完成</div>
         </div>
       </div>
-      <div class="stat-card running">
-        <Loader class="stat-icon" :size="32" />
-        <div class="stat-content">
+      <div class="stat-card">
+        <div class="stat-icon" style="background: var(--accent-light); color: var(--accent-primary);">
+          <Loader2 :size="20" class="spin" />
+        </div>
+        <div class="stat-info">
           <div class="stat-value">{{ stats.running_jobs || 0 }}</div>
           <div class="stat-label">运行中</div>
         </div>
       </div>
-      <div class="stat-card error">
-        <XCircle class="stat-icon" :size="32" />
-        <div class="stat-content">
+      <div class="stat-card">
+        <div class="stat-icon" style="background: var(--error-light); color: var(--error);">
+          <XCircle :size="20" />
+        </div>
+        <div class="stat-info">
           <div class="stat-value">{{ stats.failed_jobs || 0 }}</div>
           <div class="stat-label">失败</div>
         </div>
       </div>
     </div>
 
-    <!-- Active Jobs Section -->
-    <div class="card" v-if="activeJobs.length > 0">
+    <!-- Active Jobs -->
+    <div v-if="activeJobs.length > 0" class="card" style="margin-bottom: 24px;">
       <div class="card-header">
-        <h2><Activity :size="20" class="inline-icon" /> 运行中的任务</h2>
-        <div class="header-actions">
-          <button @click="refreshActiveJobs" class="btn btn-secondary" :disabled="loading">
-            <RefreshCw :size="16" :class="{ 'spin': loading }" /> {{ loading ? '刷新中...' : '刷新' }}
-          </button>
-        </div>
+        <h2>
+          <Activity :size="18" />
+          运行中的任务
+        </h2>
+        <button class="btn btn-sm btn-secondary" @click="refreshActiveJobs" :disabled="loading">
+          <RefreshCw :size="14" :class="{ spin: loading }" />
+          刷新
+        </button>
       </div>
+
       <div class="active-jobs">
-        <div v-for="job in activeJobs" :key="job.job_id" class="job-card active">
+        <div v-for="job in activeJobs" :key="job.job_id" class="job-card">
           <div class="job-header">
             <div class="job-info">
               <h3>{{ getConfigName(job.config_id) }}</h3>
               <span class="job-id">任务 ID: {{ job.job_id }}</span>
             </div>
-            <div class="job-status">
-              <span class="status-badge running">运行中</span>
-              <div class="job-actions">
-                <button @click="stopJob(job.job_id)" class="btn btn-sm btn-warning" :disabled="loading">
-                  <Pause :size="14" /> 停止
-                </button>
-                <button @click="cancelJob(job.job_id)" class="btn btn-sm btn-danger" :disabled="loading">
-                  <X :size="14" /> 取消
-                </button>
-                <button @click="viewJobDetails(job.job_id)" class="btn btn-sm">查看详情</button>
+            <div class="job-actions">
+              <span class="badge badge-info">
+                <span class="status-dot running"></span>
+                运行中
+              </span>
+              <button class="btn btn-sm btn-ghost" @click="stopJob(job.job_id)" title="停止">
+                <Pause :size="14" />
+              </button>
+              <button class="btn btn-sm btn-ghost text-error" @click="cancelJob(job.job_id)" title="取消">
+                <X :size="14" />
+              </button>
+            </div>
+          </div>
+
+          <!-- Progress -->
+          <div class="progress-section">
+            <div class="progress-item">
+              <div class="progress-header">
+                <span class="progress-label">表进度</span>
+                <span class="progress-value">{{ job.completed_tables }} / {{ job.total_tables }} 张表</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" :style="{ width: job.total_tables ? (job.completed_tables / job.total_tables * 100) + '%' : '0%' }"></div>
+              </div>
+            </div>
+
+            <div class="progress-item">
+              <div class="progress-header">
+                <span class="progress-label">当前表</span>
+                <span class="progress-value">{{ formatNumber(job.processed_rows) }} / {{ formatNumber(job.total_rows) }} 行</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" :style="{ width: currentTablePercent(job) + '%' }"></div>
               </div>
             </div>
           </div>
-          
-          <div class="job-progress">
-            <ProgressBar
-              label="表总数进度"
-              :percent="job.total_tables ? (job.completed_tables / job.total_tables) * 100 : 0"
-              :subtitle="`${job.completed_tables} / ${job.total_tables} 张表`"
-            />
-            <ProgressBar
-              label="当前表处理进度"
-              :percent="currentTablePercent(job)"
-              :subtitle="currentTableSubtitle(job)"
-              :indeterminate="currentTableIndeterminate(job)"
-            />
-          </div>
 
-          <div class="job-stats">
-            <div class="stat-item">
-              <span class="stat-label">已处理行数:</span>
-              <span class="stat-value time-value">{{ formatNumber(job.processed_rows) }} / {{ formatNumber(job.total_rows) }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">开始时间:</span>
-              <span class="stat-value time-value">{{ formatTime(job.start_time) }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">错误数:</span>
-              <span class="stat-value" :class="{ 'error-text': job.error_count > 0 }">{{ job.error_count || 0 }}</span>
-            </div>
-          </div>
-
-          <!-- Table Progress Details -->
+          <!-- Table Progress -->
           <div v-if="job.table_progress && Object.keys(job.table_progress).length > 0" class="table-progress">
             <h4>表同步进度</h4>
             <div class="table-list">
               <div v-for="(table, tableName) in job.table_progress" :key="tableName" class="table-item">
-                <div class="table-name">{{ table.table_name }}</div>
+                <span class="table-name">{{ table.table_name }}</span>
                 <div class="table-status">
-                  <span class="status-badge" :class="table.status">{{ getStatusText(table.status) }}</span>
-                  <span v-if="table.status === 'running'" class="table-progress-text">
+                  <span :class="['badge', table.status === 'running' ? 'badge-info' : table.status === 'completed' ? 'badge-success' : 'badge-error']">
+                    {{ getStatusText(table.status) }}
+                  </span>
+                  <span v-if="table.status === 'running'" class="table-rows">
                     {{ formatNumber(table.processed_rows) }} / {{ formatNumber(table.total_rows) }}
                   </span>
                 </div>
@@ -119,134 +126,102 @@
       </div>
     </div>
 
-    <!-- Job History Section -->
+    <!-- History -->
     <div class="card">
       <div class="card-header">
-        <h2><History :size="20" class="inline-icon" /> 同步历史</h2>
-        <div class="header-actions">
-          <button @click="refreshHistory" class="btn btn-secondary" :disabled="loading">
-            <RefreshCw :size="16" :class="{ 'spin': loading }" /> {{ loading ? '刷新中...' : '刷新' }}
-          </button>
-        </div>
+        <h2>
+          <History :size="18" />
+          同步历史
+        </h2>
+        <button class="btn btn-sm btn-secondary" @click="refreshHistory" :disabled="loading">
+          <RefreshCw :size="14" :class="{ spin: loading }" />
+          刷新
+        </button>
       </div>
 
       <div v-if="jobHistory.length === 0" class="empty-state">
-        <p>暂无同步历史记录</p>
+        <History :size="48" class="empty-state-icon" />
+        <h3>暂无同步历史</h3>
+        <p>同步任务完成后会在这里显示记录</p>
       </div>
 
-      <div v-else class="history-list">
-        <div v-for="job in jobHistory" :key="job.id" class="job-card-single-line">
-          <span class="status-badge-compact" :class="job.status">{{ getStatusText(job.status) }}</span>
-          <span class="job-name">{{ job.config_name || '未知配置' }}</span>
-          <span class="job-meta-inline">ID: {{ job.id.substring(0, 8) }}</span>
-          <span class="job-meta-inline">{{ job.connection_name || '未知' }}</span>
-          <span class="job-meta-inline">表: {{ job.completed_tables }}/{{ job.total_tables }}</span>
-          <span class="job-meta-inline">行: {{ formatNumber(job.processed_rows) }}</span>
-          <span class="job-meta-inline">{{ formatTime(job.start_time) }}</span>
-          <span class="job-meta-inline" v-if="job.end_time">{{ calculateDuration(job.start_time, job.end_time) }}</span>
-          <span v-if="job.error" class="job-error-inline" :title="job.error">错误</span>
-          <button @click="viewJobLogs(job.id)" class="btn btn-xs btn-inline">日志</button>
-        </div>
+      <div v-else class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>状态</th>
+              <th>配置名称</th>
+              <th>任务 ID</th>
+              <th>表进度</th>
+              <th>行数</th>
+              <th>开始时间</th>
+              <th>耗时</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="job in jobHistory" :key="job.id">
+              <td>
+                <span :class="['badge', getStatusClass(job.status)]">
+                  {{ getStatusText(job.status) }}
+                </span>
+              </td>
+              <td class="font-medium">{{ job.config_name || '未知配置' }}</td>
+              <td class="text-secondary">{{ job.id.substring(0, 8) }}...</td>
+              <td>{{ job.completed_tables }}/{{ job.total_tables }}</td>
+              <td>{{ formatNumber(job.processed_rows) }}</td>
+              <td class="text-secondary">{{ formatTime(job.start_time) }}</td>
+              <td class="text-secondary">{{ calculateDuration(job.start_time, job.end_time) }}</td>
+              <td>
+                <button class="btn btn-sm btn-ghost" @click="viewJobLogs(job.id)">日志</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <!-- Pagination -->
       <div v-if="jobHistory.length > 0" class="pagination">
-        <button 
-          @click="previousPage" 
-          :disabled="currentPage === 1 || loading"
-          class="btn btn-secondary"
-        >
+        <button class="btn btn-sm btn-secondary" @click="previousPage" :disabled="currentPage === 1 || loading">
+          <ChevronLeft :size="14" />
           上一页
         </button>
         <span class="page-info">第 {{ currentPage }} 页</span>
-        <button 
-          @click="nextPage" 
-          :disabled="jobHistory.length < pageSize || loading"
-          class="btn btn-secondary"
-        >
+        <button class="btn btn-sm btn-secondary" @click="nextPage" :disabled="jobHistory.length < pageSize || loading">
           下一页
+          <ChevronRight :size="14" />
         </button>
       </div>
     </div>
 
-    <!-- Job Logs Modal -->
+    <!-- Logs Modal -->
     <div v-if="showLogsModal" class="modal-overlay" @click="closeLogsModal">
-      <div class="modal-content logs-modal" @click.stop>
+      <div class="modal-content modal-lg" @click.stop>
         <div class="modal-header">
-          <h2><FileText :size="20" class="inline-icon" /> 任务日志</h2>
-          <button @click="closeLogsModal" class="close-btn">×</button>
+          <h2>
+            <FileText :size="18" />
+            任务日志
+          </h2>
+          <button class="modal-close" @click="closeLogsModal">&times;</button>
         </div>
         <div class="modal-body">
           <div v-if="loadingLogs" class="loading-state">
+            <div class="loading-spinner"></div>
             <p>加载日志中...</p>
           </div>
           <div v-else-if="jobLogs.length === 0" class="empty-state">
             <p>暂无日志记录</p>
           </div>
-          <div v-else class="logs-list-compact">
-            <div 
-              v-for="log in jobLogs" 
-              :key="log.id" 
-              class="log-entry-single-line" 
-              :class="log.level"
-            >
-              <span class="log-level-compact" :class="log.level">{{ log.level.toUpperCase() }}</span>
-              <span class="log-table-inline">{{ log.table_name }}</span>
-              <span class="log-message-inline" :class="{ expanded: expandedLogs.has(log.id) }">
-                {{ log.message }}
-              </span>
-              <span class="log-time-inline">{{ formatTime(log.created_at) }}</span>
-              <button 
-                class="log-expand-btn" 
-                @click.stop="toggleLogExpanded(log.id)"
-                v-if="log.message && log.message.length > 50"
-              >
-                {{ expandedLogs.has(log.id) ? '收起' : '展开' }}
-              </button>
+          <div v-else class="logs-list">
+            <div v-for="log in jobLogs" :key="log.id" class="log-entry" :class="log.level">
+              <div class="log-header">
+                <span :class="['log-level', log.level]">{{ log.level.toUpperCase() }}</span>
+                <span class="log-table">{{ log.table_name }}</span>
+                <span class="log-time">{{ formatTime(log.created_at) }}</span>
+              </div>
+              <div class="log-message">{{ log.message }}</div>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Start Sync Modal -->
-    <div v-if="showStartSyncModal" class="modal-overlay" @click="closeStartSyncModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h2><Play :size="20" class="inline-icon" /> 启动同步任务</h2>
-          <button @click="closeStartSyncModal" class="close-btn">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>选择同步配置</label>
-            <select v-model="selectedConfigId" class="form-control">
-              <option value="">请选择配置...</option>
-              <option v-for="config in availableConfigs" :key="config.id" :value="config.id">
-                {{ config.name }} ({{ config.connection_name }})
-              </option>
-            </select>
-          </div>
-          <div v-if="selectedConfigId" class="config-info">
-            <h4>配置详情</h4>
-            <div class="info-item">
-              <span class="info-label">连接:</span>
-              <span class="info-value">{{ getSelectedConfigInfo().connection_name }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">同步模式:</span>
-              <span class="info-value">{{ getSelectedConfigInfo().sync_mode === 'full' ? '全量同步' : '增量同步' }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">表数量:</span>
-              <span class="info-value">{{ getSelectedConfigInfo().table_count || 0 }}</span>
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button @click="closeStartSyncModal" class="btn btn-secondary">取消</button>
-          <button @click="startSync" class="btn btn-primary" :disabled="!selectedConfigId || loading">
-            {{ loading ? '启动中...' : '启动同步' }}
-          </button>
         </div>
       </div>
     </div>
@@ -255,64 +230,41 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import { 
-  BarChart3, CheckCircle, XCircle, Loader, Activity, 
-  RefreshCw, History, Play, Pause, X, FileText 
-} from 'lucide-vue-next'
+import { BarChart3, CheckCircle, XCircle, Loader2, Activity, RefreshCw, History, Pause, X, FileText, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
 import Toast from '../components/Toast.vue'
-import ProgressBar from '../components/ProgressBar.vue'
 
 const syncStore = useSyncStore()
 
-// State
 const stats = ref({})
 const activeJobs = ref([])
 const jobHistory = ref([])
 const jobLogs = ref([])
-const availableConfigs = ref([])
-const selectedConfigId = ref('')
 const loading = ref(false)
 const loadingLogs = ref(false)
 const showLogsModal = ref(false)
-const showStartSyncModal = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(20)
-const refreshInterval = ref(null)
-const progressEventSource = ref(null) // SSE for running job progress
-const expandedLogs = ref(new Set())
-const toast = ref({
-  show: false,
-  message: '',
-  type: 'info'
-})
+const progressEventSource = ref(null)
+const toast = ref({ show: false, message: '', type: 'info' })
 
-// Load initial data
 onMounted(async () => {
-  console.log('Monitoring component mounted')
   await loadAllData()
   startProgressStream()
 })
 
 onUnmounted(() => {
-  console.log('Monitoring component unmounted')
   stopProgressStream()
-  if (refreshInterval.value) {
-    clearInterval(refreshInterval.value)
-  }
 })
 
-// 进度数据仅通过 SSE 获取：/api/sync/jobs/progress/stream 推送 progress 事件，含表总数进度与当前表行级进度
 function startProgressStream() {
   if (progressEventSource.value) return
-  const url = '/api/sync/jobs/progress/stream'
-  const es = new EventSource(url)
+  const es = new EventSource('/api/sync/jobs/progress/stream')
   progressEventSource.value = es
 
   es.addEventListener('progress', (e) => {
     try {
       const payload = JSON.parse(e.data)
-      // SSE 返回 { type: 'progress', data: jobs, ts }，表/行进度在 job.table_progress、job.current_table 等
       const jobs = payload?.data ?? []
       const hadJobs = activeJobs.value.length > 0
       activeJobs.value = jobs
@@ -340,16 +292,9 @@ function stopProgressStream() {
 }
 
 async function loadAllData() {
-  console.log('Loading all monitoring data...')
   loading.value = true
   try {
-    await Promise.all([
-      loadStats(),
-      loadActiveJobs(),
-      loadHistory(),
-      loadAvailableConfigs()
-    ])
-    console.log('All data loaded successfully')
+    await Promise.all([loadStats(), loadActiveJobs(), loadHistory()])
   } catch (error) {
     console.error('Failed to load monitoring data:', error)
   } finally {
@@ -361,9 +306,7 @@ async function loadStats() {
   try {
     const response = await fetch('/api/sync/stats')
     const result = await response.json()
-    if (result.success) {
-      stats.value = result.data || {}
-    }
+    if (result.success) stats.value = result.data || {}
   } catch (error) {
     console.error('Failed to load stats:', error)
   }
@@ -371,18 +314,9 @@ async function loadStats() {
 
 async function loadActiveJobs() {
   try {
-    console.log('Loading active jobs...')
     const response = await fetch('/api/sync/jobs/active')
     const result = await response.json()
-    console.log('Active jobs response:', result)
-    if (result.success) {
-      const newJobs = result.data || []
-      console.log('Active jobs count:', newJobs.length)
-      console.log('Active jobs:', newJobs)
-      activeJobs.value = newJobs
-    } else {
-      console.error('Failed to load active jobs:', result.error)
-    }
+    if (result.success) activeJobs.value = result.data || []
   } catch (error) {
     console.error('Failed to load active jobs:', error)
   }
@@ -392,38 +326,17 @@ async function loadHistory() {
   try {
     const offset = (currentPage.value - 1) * pageSize.value
     const url = `/api/sync/jobs/history?limit=${pageSize.value}&offset=${offset}`
-    console.log('Loading history from:', url)
     const response = await fetch(url)
     const result = await response.json()
-    console.log('History response:', result)
-    if (result.success) {
-      jobHistory.value = result.data || []
-      console.log('Job history loaded:', jobHistory.value.length, 'items')
-    } else {
-      console.error('Failed to load history:', result.error)
-    }
+    if (result.success) jobHistory.value = result.data || []
   } catch (error) {
     console.error('Failed to load job history:', error)
   }
 }
 
-async function loadAvailableConfigs() {
-  try {
-    const response = await fetch('/api/sync/configs')
-    const result = await response.json()
-    if (result.success) {
-      availableConfigs.value = result.data || []
-    }
-  } catch (error) {
-    console.error('Failed to load available configs:', error)
-  }
-}
-
 async function refreshActiveJobs() {
-  console.log('Refreshing active jobs...')
   await loadActiveJobs()
   await loadStats()
-  console.log('Active jobs refreshed')
 }
 
 async function refreshHistory() {
@@ -442,9 +355,7 @@ async function viewJobLogs(jobId) {
   try {
     const response = await fetch(`/api/sync/jobs/${jobId}/logs`)
     const result = await response.json()
-    if (result.success) {
-      jobLogs.value = result.data || []
-    }
+    if (result.success) jobLogs.value = result.data || []
   } catch (error) {
     console.error('Failed to load job logs:', error)
   } finally {
@@ -457,93 +368,20 @@ function closeLogsModal() {
   jobLogs.value = []
 }
 
-function toggleLogExpanded(logId) {
-  if (expandedLogs.value.has(logId)) {
-    expandedLogs.value.delete(logId)
-  } else {
-    expandedLogs.value.add(logId)
-  }
-}
-
-function closeStartSyncModal() {
-  showStartSyncModal.value = false
-  selectedConfigId.value = ''
-}
-
-async function startSync() {
-  if (!selectedConfigId.value) return
-  
-  loading.value = true
-  try {
-    const response = await fetch('/api/sync/jobs', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        config_id: selectedConfigId.value
-      })
-    })
-    
-    const result = await response.json()
-    if (result.success) {
-      toast.value = {
-        show: true,
-        message: '同步任务已成功启动！',
-        type: 'success'
-      }
-      closeStartSyncModal()
-      await loadAllData()
-    } else {
-      toast.value = {
-        show: true,
-        message: '启动失败: ' + (result.error || '未知错误'),
-        type: 'error'
-      }
-    }
-  } catch (error) {
-    console.error('Failed to start sync:', error)
-    toast.value = {
-      show: true,
-      message: '启动失败: ' + error.message,
-      type: 'error'
-    }
-  } finally {
-    loading.value = false
-  }
-}
-
 async function stopJob(jobId) {
   if (!confirm('确定要停止这个同步任务吗？')) return
-  
   loading.value = true
   try {
-    const response = await fetch(`/api/sync/jobs/${jobId}/stop`, {
-      method: 'POST'
-    })
-    
+    const response = await fetch(`/api/sync/jobs/${jobId}/stop`, { method: 'POST' })
     const result = await response.json()
     if (result.success) {
-      toast.value = {
-        show: true,
-        message: '任务已成功停止',
-        type: 'success'
-      }
+      toast.value = { show: true, message: '任务已成功停止', type: 'success' }
       await refreshActiveJobs()
     } else {
-      toast.value = {
-        show: true,
-        message: '停止失败: ' + (result.error || '未知错误'),
-        type: 'error'
-      }
+      toast.value = { show: true, message: '停止失败: ' + (result.error || '未知错误'), type: 'error' }
     }
   } catch (error) {
-    console.error('Failed to stop job:', error)
-    toast.value = {
-      show: true,
-      message: '停止失败: ' + error.message,
-      type: 'error'
-    }
+    toast.value = { show: true, message: '停止失败: ' + error.message, type: 'error' }
   } finally {
     loading.value = false
   }
@@ -551,70 +389,36 @@ async function stopJob(jobId) {
 
 async function cancelJob(jobId) {
   if (!confirm('确定要取消这个同步任务吗？取消后任务将无法恢复。')) return
-  
   loading.value = true
   try {
-    const response = await fetch(`/api/sync/jobs/${jobId}/cancel`, {
-      method: 'POST'
-    })
-    
+    const response = await fetch(`/api/sync/jobs/${jobId}/cancel`, { method: 'POST' })
     const result = await response.json()
     if (result.success) {
-      toast.value = {
-        show: true,
-        message: '任务已成功取消',
-        type: 'success'
-      }
+      toast.value = { show: true, message: '任务已成功取消', type: 'success' }
       await refreshActiveJobs()
     } else {
-      toast.value = {
-        show: true,
-        message: '取消失败: ' + (result.error || '未知错误'),
-        type: 'error'
-      }
+      toast.value = { show: true, message: '取消失败: ' + (result.error || '未知错误'), type: 'error' }
     }
   } catch (error) {
-    console.error('Failed to cancel job:', error)
-    toast.value = {
-      show: true,
-      message: '取消失败: ' + error.message,
-      type: 'error'
-    }
+    toast.value = { show: true, message: '取消失败: ' + error.message, type: 'error' }
   } finally {
     loading.value = false
   }
 }
 
-function getSelectedConfigInfo() {
-  const config = availableConfigs.value.find(c => c.id === selectedConfigId.value)
-  return config || {}
-}
-
-function viewJobDetails(jobId) {
-  // Could navigate to a detailed job view or show a modal
-  console.log('View job details:', jobId)
-}
-
 function getConfigName(configId) {
-  // First try to find in availableConfigs (loaded in this component)
-  const config = availableConfigs.value.find(c => c.id === configId)
-  if (config) {
-    return config.name
-  }
-  // Fallback to syncStore
-  const storeConfig = syncStore.configs.find(c => c.id === configId)
-  return storeConfig?.name || configId
+  const config = syncStore.configs.find(c => c.id === configId)
+  return config?.name || configId.substring(0, 8)
 }
 
 function getStatusText(status) {
-  const statusMap = {
-    'pending': '等待中',
-    'running': '运行中',
-    'completed': '已完成',
-    'failed': '失败',
-    'cancelled': '已取消'
-  }
-  return statusMap[status] || status
+  const map = { pending: '等待中', running: '运行中', completed: '已完成', failed: '失败', cancelled: '已取消' }
+  return map[status] || status
+}
+
+function getStatusClass(status) {
+  const map = { pending: 'badge-warning', running: 'badge-info', completed: 'badge-success', failed: 'badge-error', cancelled: 'badge-error' }
+  return map[status] || 'badge-info'
 }
 
 function formatNumber(num) {
@@ -622,64 +426,30 @@ function formatNumber(num) {
   return num.toLocaleString()
 }
 
-/** 当前正在同步的表的进度百分比 (0–100)，无当前表或无总量时返回 0 */
 function currentTablePercent(job) {
   const table = getCurrentTableProgress(job)
   if (!table || table.total_rows <= 0) return 0
   return Math.min(100, (table.processed_rows / table.total_rows) * 100)
 }
 
-/** 当前表进度副标题：表名 + 行数 */
-function currentTableSubtitle(job) {
-  const table = getCurrentTableProgress(job)
-  if (!table) return job.current_table ? `正在同步: ${job.current_table}` : '暂无当前表'
-  return `${table.table_name || job.current_table}: ${formatNumber(table.processed_rows)} / ${formatNumber(table.total_rows)} 行`
-}
-
-/** 是否有当前表但无总量（显示 indeterminate） */
-function currentTableIndeterminate(job) {
-  const table = getCurrentTableProgress(job)
-  return !!(job.current_table && table && table.total_rows <= 0 && table.status === 'running')
-}
-
-/** 从 job 中取出当前正在同步的表进度信息 */
 function getCurrentTableProgress(job) {
   if (!job?.table_progress) return null
   const name = job.current_table
   if (name && job.table_progress[name]) return job.table_progress[name]
-  const running = Object.values(job.table_progress).find(t => t.status === 'running')
-  return running || null
+  return Object.values(job.table_progress).find(t => t.status === 'running') || null
 }
 
 function formatTime(timestamp) {
   if (!timestamp) return '-'
-  const date = new Date(timestamp)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
+  return new Date(timestamp).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 function calculateDuration(startTime, endTime) {
   if (!startTime || !endTime) return '-'
-  const start = new Date(startTime)
-  const end = new Date(endTime)
-  const durationMs = end - start
-  const seconds = Math.floor(durationMs / 1000)
-  const minutes = Math.floor(seconds / 60)
-  const hours = Math.floor(minutes / 60)
-  
-  if (hours > 0) {
-    return `${hours}小时${minutes % 60}分钟`
-  } else if (minutes > 0) {
-    return `${minutes}分钟${seconds % 60}秒`
-  } else {
-    return `${seconds}秒`
-  }
+  const seconds = Math.floor((new Date(endTime) - new Date(startTime)) / 1000)
+  if (seconds < 60) return `${seconds}秒`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}分${seconds % 60}秒`
+  return `${Math.floor(seconds / 3600)}时${Math.floor((seconds % 3600) / 60)}分`
 }
 
 function previousPage() {
@@ -696,58 +466,266 @@ function nextPage() {
 </script>
 
 <style scoped>
-/* Statistics Grid */
+.page-header {
+  margin-bottom: var(--space-5);
+}
+
+.page-header h1 {
+  font-size: 24px;
+  font-weight: 600;
+}
+
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
 }
 
 .stat-card {
-  background: white;
-  border-radius: 10px;
-  padding: 1.5rem;
   display: flex;
   align-items: center;
-  gap: 1rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  border-left: 4px solid #667eea;
-}
-
-.stat-card.success {
-  border-left-color: #10b981;
-}
-
-.stat-card.running {
-  border-left-color: #3b82f6;
-}
-
-.stat-card.error {
-  border-left-color: #ef4444;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
 }
 
 .stat-icon {
-  color: #667eea;
-  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
 }
 
-.stat-card.success .stat-icon {
-  color: #10b981;
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
 }
 
-.stat-card.running .stat-icon {
-  color: #3b82f6;
+.stat-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 4px;
 }
 
-.stat-card.error .stat-icon {
-  color: #ef4444;
+.job-card {
+  padding: var(--space-4);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-4);
 }
 
-.inline-icon {
-  display: inline-block;
-  vertical-align: middle;
-  margin-right: 0.25rem;
+.job-card:last-child {
+  margin-bottom: 0;
+}
+
+.job-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-4);
+}
+
+.job-info h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: var(--space-1);
+}
+
+.job-id {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.job-actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.progress-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.progress-item {
+  background: var(--bg-primary);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
+}
+
+.progress-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.progress-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.progress-bar {
+  height: 6px;
+  background: var(--border-secondary);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent-primary);
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+
+.table-progress {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-primary);
+}
+
+.table-progress h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: var(--space-3);
+}
+
+.table-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.table-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3);
+  background: var(--bg-primary);
+  border-radius: var(--radius-md);
+}
+
+.table-name {
+  font-weight: 500;
+}
+
+.table-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.table-rows {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-secondary);
+}
+
+.page-info {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.logs-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.log-entry {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--border-primary);
+}
+
+.log-entry.info {
+  background: var(--accent-light);
+  border-left-color: var(--accent-primary);
+}
+
+.log-entry.warn {
+  background: var(--warning-light);
+  border-left-color: var(--warning);
+}
+
+.log-entry.error {
+  background: var(--error-light);
+  border-left-color: var(--error);
+}
+
+.log-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.log-level {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+}
+
+.log-entry.info .log-level {
+  background: var(--accent-primary);
+  color: white;
+}
+
+.log-entry.warn .log-level {
+  background: var(--warning);
+  color: white;
+}
+
+.log-entry.error .log-level {
+  background: var(--error);
+  color: white;
+}
+
+.log-table {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.log-time {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-left: auto;
+}
+
+.log-message {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.modal-lg {
+  max-width: 900px;
 }
 
 .spin {
@@ -759,912 +737,19 @@ function nextPage() {
   to { transform: rotate(360deg); }
 }
 
-.stat-content {
-  flex: 1;
-}
-
-.stat-value {
-  font-size: 2rem;
-  font-weight: bold;
-  color: #1f2937;
-}
-
-.stat-label {
-  font-size: 0.875rem;
-  color: #6b7280;
-}
-
-/* Card Styles */
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.header-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.card h2 {
-  color: #667eea;
-  font-size: 1.5rem;
-  margin: 0;
-}
-
-.header-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-/* Job Cards */
-.active-jobs,
-.history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.job-card {
-  background: #f9fafb;
-  border-radius: 8px;
-  padding: 1.5rem;
-  border: 1px solid #e5e7eb;
-}
-
-.job-card.active {
-  border-left: 4px solid #3b82f6;
-  background: #eff6ff;
-}
-
-.job-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1rem;
-}
-
-.job-info h3 {
-  margin: 0 0 0.5rem 0;
-  color: #1f2937;
-  font-size: 1.125rem;
-}
-
-.job-id,
-.connection-name {
-  display: block;
-  font-size: 0.875rem;
-  color: #6b7280;
-  margin-top: 0.25rem;
-}
-
-.job-status {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.5rem;
-}
-
-.job-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.status-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-.status-badge.pending {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.status-badge.running {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.status-badge.completed {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.status-badge.failed {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.status-badge.cancelled {
-  background: #f3f4f6;
-  color: #4b5563;
-}
-
-/* Progress Bar */
-.job-progress {
-  margin: 1rem 0;
-  padding: 0.75rem 1rem;
-  background: #f8fafc;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-}
-
-.progress-label {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: #475569;
-  margin-bottom: 0.5rem;
-}
-
-.progress-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
-  color: #64748b;
-}
-
-.progress-percent {
-  font-weight: 600;
-  color: #1e40af;
-  min-width: 3.5em;
-  text-align: right;
-}
-
-.progress-bar {
-  height: 10px;
-  background: #e2e8f0;
-  border-radius: 9999px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #3b82f6, #2563eb);
-  transition: width 0.35s ease;
-}
-
-/* Job Stats */
-.job-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.stat-item .stat-label {
-  font-size: 0.875rem;
-  color: #6b7280;
-}
-
-.stat-item .stat-value {
-  font-weight: 500;
-  color: #1f2937;
-}
-
-.stat-item .stat-value.time-value {
-  font-size: 18px;
-}
-
-.error-text {
-  color: #ef4444 !important;
-}
-
-.job-error {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: #fee2e2;
-  border-radius: 6px;
-  color: #991b1b;
-  font-size: 0.875rem;
-}
-
-/* Single Line History Card Styles */
-.job-card-single-line {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  background: #f9fafb;
-  border-radius: 4px;
-  padding: 0.5rem 0.875rem;
-  border: 1px solid #e5e7eb;
-  transition: background 0.2s;
-  font-size: 0.8125rem;
-}
-
-.job-card-single-line:hover {
-  background: #f3f4f6;
-}
-
-.job-name {
-  font-weight: 600;
-  color: #1f2937;
-  min-width: 120px;
-}
-
-.job-meta-inline {
-  color: #6b7280;
-  white-space: nowrap;
-}
-
-.job-error-inline {
-  color: #ef4444;
-  font-weight: 600;
-  font-size: 0.75rem;
-  padding: 0.125rem 0.375rem;
-  background: #fee2e2;
-  border-radius: 3px;
-  cursor: help;
-}
-
-.btn-inline {
-  margin-left: auto;
-}
-
-/* Single Line Log Entry Styles */
-.log-entry-single-line {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 0.75rem 0.875rem;
-  border-radius: 4px;
-  border-left: 3px solid #e5e7eb;
-  font-size: 0.8125rem;
-}
-
-.log-entry-single-line.info {
-  background: #f0f9ff;
-  border-left-color: #3b82f6;
-}
-
-.log-entry-single-line.warn {
-  background: #fffbeb;
-  border-left-color: #f59e0b;
-}
-
-.log-entry-single-line.error {
-  background: #fef2f2;
-  border-left-color: #ef4444;
-}
-
-.log-table-inline {
-  font-weight: 500;
-  color: #1f2937;
-  min-width: 100px;
-}
-
-.log-message-inline {
-  flex: 1;
-  color: #374151;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  line-height: 1.5;
-}
-
-.log-message-inline.expanded {
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow: visible;
-}
-.log-time-inline {
-  font-size: 0.75rem;
-  color: #9ca3af;
-  flex-shrink: 0;
-}
-
-.log-expand-btn {
-  font-size: 0.75rem;
-  color: #667eea;
-  cursor: pointer;
-  padding: 0.25rem 0.5rem;
-  border-radius: 3px;
-  background: #f3f4f6;
-  border: none;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.log-expand-btn:hover {
-  background: #e5e7eb;
-}
-
-/* Old compact styles - keeping for backward compatibility */
-.job-card-compact {
-  background: #f9fafb;
-  border-radius: 6px;
-  padding: 0.625rem 0.875rem;
-  border: 1px solid #e5e7eb;
-  transition: background 0.2s;
-}
-
-.job-card-compact:hover {
-  background: #f3f4f6;
-}
-
-.history-header-compact {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.history-title-compact {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  flex: 1;
-}
-
-.history-title-compact h3 {
-  margin: 0;
-  font-size: 0.9375rem;
-  color: #1f2937;
-  font-weight: 600;
-}
-
-.status-badge-compact {
-  padding: 0.125rem 0.5rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  flex-shrink: 0;
-}
-
-.status-badge-compact.pending {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.status-badge-compact.running {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.status-badge-compact.completed {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.status-badge-compact.failed {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.status-badge-compact.cancelled {
-  background: #f3f4f6;
-  color: #4b5563;
-}
-
-.history-meta-compact {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  font-size: 0.75rem;
-  color: #6b7280;
-  line-height: 1.4;
-}
-
-.meta-item-compact {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.meta-label-compact {
-  color: #9ca3af;
-  font-weight: 500;
-}
-
-.btn-xs {
-  padding: 0.25rem 0.625rem;
-  font-size: 0.75rem;
-  border: none;
-  border-radius: 4px;
-  background: #f3f4f6;
-  color: #1f2937;
-  cursor: pointer;
-  transition: background 0.2s;
-  font-weight: 500;
-}
-
-.btn-xs:hover {
-  background: #e5e7eb;
-}
-
-.job-error-compact {
-  margin-top: 0.5rem;
-  padding: 0.375rem 0.625rem;
-  background: #fee2e2;
-  border-radius: 4px;
-  color: #991b1b;
-  font-size: 0.75rem;
-  line-height: 1.4;
-}
-
-.job-error-compact strong {
-  font-weight: 600;
-}
-
-/* Compact Logs Styles */
-.logs-list-compact {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.log-entry-compact {
-  padding: 0.625rem 0.875rem;
-  border-radius: 4px;
-  border-left: 3px solid #e5e7eb;
-}
-
-.log-entry-compact.info {
-  background: #f0f9ff;
-  border-left-color: #3b82f6;
-}
-
-.log-entry-compact.warn {
-  background: #fffbeb;
-  border-left-color: #f59e0b;
-}
-
-.log-entry-compact.error {
-  background: #fef2f2;
-  border-left-color: #ef4444;
-}
-
-.log-header-compact {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  margin-bottom: 0.375rem;
-  flex-wrap: wrap;
-}
-
-.log-level-compact {
-  padding: 0.0625rem 0.375rem;
-  border-radius: 3px;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.log-level-compact.info {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.log-level-compact.warn {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.log-level-compact.error {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.log-table-compact {
-  font-size: 0.75rem;
-  color: #6b7280;
-  font-weight: 500;
-}
-
-.log-time-compact {
-  font-size: 0.6875rem;
-  color: #9ca3af;
-  margin-left: auto;
-}
-
-.log-message-compact {
-  color: #1f2937;
-  font-size: 0.8125rem;
-  line-height: 1.5;
-}
-
-/* Old styles - keeping for backward compatibility */
-.history-card {
-  padding: 0.875rem 1rem;
-}
-
-.history-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.625rem;
-}
-
-.history-title {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.history-title h3 {
-  margin: 0;
-  font-size: 1rem;
-  color: #1f2937;
-}
-
-.history-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  font-size: 0.8125rem;
-  color: #6b7280;
-}
-
-.meta-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.meta-label {
-  color: #9ca3af;
-  font-weight: 500;
-}
-
-.job-error-compact {
-  margin-top: 0.625rem;
-  padding: 0.5rem 0.75rem;
-  background: #fee2e2;
-  border-radius: 4px;
-  color: #991b1b;
-  font-size: 0.8125rem;
-}
-
-/* Table Progress */
-.table-progress {
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid #e5e7eb;
-}
-
-.table-progress h4 {
-  margin: 0 0 1rem 0;
-  color: #1f2937;
-  font-size: 1rem;
-}
-
-.table-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.table-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem;
-  background: white;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-}
-
-.table-name {
-  font-weight: 500;
-  color: #1f2937;
-}
-
-.table-status {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.table-progress-text {
-  font-size: 0.875rem;
-  color: #6b7280;
-}
-
-/* Pagination */
-.pagination {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 1rem;
-  margin-top: 2rem;
-  padding-top: 1rem;
-  border-top: 1px solid #e5e7eb;
-}
-
-.page-info {
-  color: #6b7280;
-  font-size: 0.875rem;
-}
-
-/* Empty State */
-.empty-state {
-  text-align: center;
-  padding: 3rem;
-  color: #6b7280;
-}
-
-/* Modal Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: white;
-  border-radius: 10px;
-  width: 90%;
-  max-width: 800px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.logs-modal {
-  max-height: 80vh;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.modal-header h2 {
-  margin: 0;
-  color: #1f2937;
-  font-size: 1.5rem;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 2rem;
-  color: #6b7280;
-  cursor: pointer;
-  padding: 0;
-  width: 2rem;
-  height: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: background 0.2s;
-}
-
-.close-btn:hover {
-  background: #f3f4f6;
-}
-
-.modal-body {
-  padding: 1.5rem;
-  overflow-y: auto;
-}
-
-/* Logs List */
-.logs-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.log-entry {
-  padding: 1rem;
-  border-radius: 6px;
-  border-left: 4px solid #e5e7eb;
-}
-
-.log-entry.info {
-  background: #f0f9ff;
-  border-left-color: #3b82f6;
-}
-
-.log-entry.warn {
-  background: #fffbeb;
-  border-left-color: #f59e0b;
-}
-
-.log-entry.error {
-  background: #fef2f2;
-  border-left-color: #ef4444;
-}
-
-.log-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.log-level {
-  padding: 0.125rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.log-level.info {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.log-level.warn {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.log-level.error {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.log-time {
-  font-size: 0.875rem;
-  color: #6b7280;
-}
-
-.log-table {
-  font-size: 0.875rem;
-  color: #6b7280;
-  margin-bottom: 0.5rem;
-}
-
-.log-message {
-  color: #1f2937;
-  line-height: 1.5;
-}
-
-.loading-state {
-  text-align: center;
-  padding: 2rem;
-  color: #6b7280;
-}
-
-/* Button Styles */
-.btn {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-primary {
-  background: #667eea;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #5568d3;
-}
-
-.btn-secondary {
-  background: #f3f4f6;
-  color: #1f2937;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #e5e7eb;
-}
-
-.btn-sm {
-  padding: 0.375rem 0.75rem;
-  font-size: 0.8125rem;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-warning {
-  background: #f59e0b;
-  color: white;
-}
-
-.btn-warning:hover:not(:disabled) {
-  background: #d97706;
-}
-
-.btn-danger {
-  background: #ef4444;
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: #dc2626;
-}
-
-/* Modal Footer */
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  padding: 1.5rem;
-  border-top: 1px solid #e5e7eb;
-}
-
-/* Form Styles */
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: #1f2937;
-}
-
-.form-control {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 0.875rem;
-  transition: border-color 0.2s;
-}
-
-.form-control:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-/* Config Info */
-.config-info {
-  background: #f9fafb;
-  border-radius: 6px;
-  padding: 1rem;
-  margin-top: 1rem;
-}
-
-.config-info h4 {
-  margin: 0 0 1rem 0;
-  color: #1f2937;
-  font-size: 1rem;
-}
-
-.info-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.info-item:last-child {
-  border-bottom: none;
-}
-
-.info-label {
-  color: #6b7280;
-  font-size: 0.875rem;
-}
-
-.info-value {
-  color: #1f2937;
-  font-weight: 500;
-  font-size: 0.875rem;
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .job-header {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .job-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 </style>

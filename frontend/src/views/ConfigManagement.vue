@@ -1,42 +1,49 @@
 <template>
   <div>
+    <!-- Page Header -->
+    <div class="page-header">
+      <h1>配置管理</h1>
+    </div>
 
-    <div class="card">
+    <!-- Export Card -->
+    <div class="card" style="margin-bottom: 24px;">
       <div class="card-header">
-        <h2><Upload :size="20" class="inline-icon" /> 导出配置</h2>
+        <h2>
+          <Upload :size="18" />
+          导出配置
+        </h2>
       </div>
-      <p class="card-description">
+      <p class="text-secondary" style="margin-bottom: 16px;">
         导出当前所有的同步配置，包括连接信息、数据库映射和表映射配置。
       </p>
       <div class="action-buttons">
         <button class="btn btn-primary" @click="handleExport" :disabled="store.loading">
-          <Download :size="18" v-if="!store.loading" /> 
-          <Loader2 :size="18" class="spin" v-else />
+          <Loader2 v-if="store.loading" :size="16" class="spin" />
+          <Download v-else :size="16" />
           <span>{{ store.loading ? '导出中...' : '导出配置' }}</span>
         </button>
         <button class="btn btn-secondary" @click="handleBackup" :disabled="store.loading">
-          <Save :size="18" v-if="!store.loading" />
-          <Loader2 :size="18" class="spin" v-else />
-          <span>{{ store.loading ? '备份中...' : '创建备份' }}</span>
+          <Save :size="16" />
+          <span>创建备份</span>
         </button>
       </div>
     </div>
 
+    <!-- Import Card -->
     <div class="card">
       <div class="card-header">
-        <h2><Download :size="20" class="inline-icon" /> 导入配置</h2>
+        <h2>
+          <Download :size="18" />
+          导入配置
+        </h2>
       </div>
-      <p class="card-description">
+      <p class="text-secondary" style="margin-bottom: 16px;">
         从配置文件导入同步配置。系统会自动验证配置文件的有效性。
       </p>
 
       <div class="import-section">
-        <div class="file-upload">
-          <label for="config-file" class="file-label">
-            <Folder :size="24" class="file-icon" />
-            <span v-if="!selectedFile">选择配置文件 (JSON)</span>
-            <span v-else class="file-name">{{ selectedFile.name }}</span>
-          </label>
+        <!-- File Upload -->
+        <div class="file-upload" :class="{ 'has-file': selectedFile }">
           <input
             id="config-file"
             type="file"
@@ -44,72 +51,84 @@
             @change="handleFileSelect"
             class="file-input"
           />
+          <label for="config-file" class="file-label">
+            <FolderOpen :size="24" />
+            <span v-if="!selectedFile">选择配置文件 (JSON)</span>
+            <span v-else class="file-name">{{ selectedFile.name }}</span>
+          </label>
         </div>
 
+        <!-- File Actions -->
         <div v-if="selectedFile" class="file-actions">
           <button class="btn btn-secondary" @click="handleValidate" :disabled="store.loading || validating">
-            <CheckCircle :size="16" v-if="!validating" />
-            <Loader2 :size="16" class="spin" v-else />
+            <Loader2 v-if="validating" :size="14" class="spin" />
+            <CheckCircle v-else :size="14" />
             <span>{{ validating ? '验证中...' : '验证配置' }}</span>
           </button>
-          <button class="btn" @click="clearFile">
-            <X :size="16" /> 清除
+          <button class="btn btn-ghost" @click="clearFile">
+            <X :size="14" />
+            <span>清除</span>
           </button>
         </div>
 
-        <div v-if="validationResult" class="validation-result" :class="validationResult.valid ? 'success' : 'error'">
-          <CheckCircle v-if="validationResult.valid" class="result-icon" :size="32" />
-          <XCircle v-else class="result-icon" :size="32" />
-          <div class="result-message">
+        <!-- Validation Result -->
+        <div v-if="validationResult" :class="['validation-result', validationResult.valid ? 'success' : 'error']">
+          <CheckCircle v-if="validationResult.valid" :size="24" />
+          <XCircle v-else :size="24" />
+          <div>
             <strong>{{ validationResult.valid ? '配置有效' : '配置无效' }}</strong>
-            <p v-if="validationResult.error">{{ validationResult.error }}</p>
-            <p v-else>配置文件格式正确，可以导入</p>
+            <p v-if="validationResult.error" class="text-secondary">{{ validationResult.error }}</p>
+            <p v-else class="text-secondary">配置文件格式正确，可以导入</p>
           </div>
         </div>
 
+        <!-- Import Options -->
         <div v-if="validationResult && validationResult.valid" class="import-options">
           <label class="checkbox-label">
             <input type="checkbox" v-model="resolveConflicts" />
             <span>自动解决冲突（覆盖现有配置）</span>
           </label>
-          <p class="option-description">
-            如果启用，导入时遇到冲突的配置将自动覆盖。否则，导入将失败并显示冲突详情。
-          </p>
+          <p class="option-hint">如果启用，导入时遇到冲突的配置将自动覆盖。否则，导入将失败并显示冲突详情。</p>
         </div>
 
-        <div v-if="validationResult && validationResult.valid" class="action-buttons">
+        <!-- Import Button -->
+        <div v-if="validationResult && validationResult.valid" class="file-actions">
           <button class="btn btn-primary" @click="handleImport" :disabled="store.loading">
-            <Download :size="18" v-if="!store.loading" />
-            <Loader2 :size="18" class="spin" v-else />
+            <Loader2 v-if="store.loading" :size="16" class="spin" />
+            <Download v-else :size="16" />
             <span>{{ store.loading ? '导入中...' : '导入配置' }}</span>
           </button>
         </div>
       </div>
     </div>
 
-    <div v-if="store.error" class="alert alert-error">
-      <strong>错误：</strong>{{ store.error }}
+    <!-- Alert Messages -->
+    <div v-if="store.error" class="alert alert-error" style="margin-top: 16px;">
+      <AlertCircle :size="18" />
+      <span>{{ store.error }}</span>
     </div>
 
-    <div v-if="successMessage" class="alert alert-success">
-      <strong>成功：</strong>{{ successMessage }}
+    <div v-if="successMessage" class="alert alert-success" style="margin-top: 16px;">
+      <CheckCircle :size="18" />
+      <span>{{ successMessage }}</span>
     </div>
 
-    <!-- Config Preview Modal -->
+    <!-- Preview Modal -->
     <div v-if="showPreview" class="modal-overlay" @click="closePreview">
-      <div class="modal-content" @click.stop>
+      <div class="modal-content modal-lg" @click.stop>
         <div class="modal-header">
-          <h3>配置预览</h3>
-          <button class="close-btn" @click="closePreview">✕</button>
+          <h2>配置预览</h2>
+          <button class="modal-close" @click="closePreview">&times;</button>
         </div>
         <div class="modal-body">
           <pre class="config-preview">{{ JSON.stringify(previewConfig, null, 2) }}</pre>
         </div>
         <div class="modal-footer">
           <button class="btn btn-primary" @click="downloadConfig">
-            💾 下载配置文件
+            <Download :size="16" />
+            <span>下载配置文件</span>
           </button>
-          <button class="btn" @click="closePreview">关闭</button>
+          <button class="btn btn-secondary" @click="closePreview">关闭</button>
         </div>
       </div>
     </div>
@@ -118,10 +137,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { 
-  Upload, Download, Save, Folder, CheckCircle, 
-  XCircle, X, Loader2 
-} from 'lucide-vue-next'
+import { Upload, Download, Save, FolderOpen, CheckCircle, XCircle, X, Loader2, AlertCircle } from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
 
 const store = useSyncStore()
@@ -141,17 +157,13 @@ function handleFileSelect(event) {
     selectedFile.value = file
     validationResult.value = null
     successMessage.value = ''
-    
-    // Read file content
+
     const reader = new FileReader()
     reader.onload = (e) => {
       try {
         configData.value = JSON.parse(e.target.result)
       } catch (error) {
-        validationResult.value = {
-          valid: false,
-          error: '无效的 JSON 格式'
-        }
+        validationResult.value = { valid: false, error: '无效的 JSON 格式' }
       }
     }
     reader.readAsText(file)
@@ -168,41 +180,26 @@ function clearFile() {
 
 async function handleValidate() {
   if (!configData.value) {
-    validationResult.value = {
-      valid: false,
-      error: '请先选择配置文件'
-    }
+    validationResult.value = { valid: false, error: '请先选择配置文件' }
     return
   }
-
   validating.value = true
   try {
-    const result = await store.validateConfig(configData.value)
-    validationResult.value = result
+    validationResult.value = await store.validateConfig(configData.value)
   } catch (error) {
-    validationResult.value = {
-      valid: false,
-      error: error.message
-    }
+    validationResult.value = { valid: false, error: error.message }
   } finally {
     validating.value = false
   }
 }
 
 async function handleImport() {
-  if (!configData.value) {
-    return
-  }
-
+  if (!configData.value) return
   try {
     await store.importConfig(configData.value, resolveConflicts.value)
     successMessage.value = '配置导入成功！'
     clearFile()
-    
-    // Clear success message after 5 seconds
-    setTimeout(() => {
-      successMessage.value = ''
-    }, 5000)
+    setTimeout(() => { successMessage.value = '' }, 5000)
   } catch (error) {
     console.error('Import failed:', error)
   }
@@ -235,7 +232,6 @@ function closePreview() {
 
 function downloadConfig() {
   if (!previewConfig.value) return
-
   const dataStr = JSON.stringify(previewConfig.value, null, 2)
   const dataBlob = new Blob([dataStr], { type: 'application/json' })
   const url = URL.createObjectURL(dataBlob)
@@ -246,194 +242,109 @@ function downloadConfig() {
   link.click()
   document.body.removeChild(link)
   URL.revokeObjectURL(url)
-  
   closePreview()
   successMessage.value = '配置文件已下载！'
-  setTimeout(() => {
-    successMessage.value = ''
-  }, 5000)
+  setTimeout(() => { successMessage.value = '' }, 5000)
 }
 </script>
 
 <style scoped>
-.card {
-  background: white;
-  border-radius: 10px;
-  padding: 2rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  margin-bottom: 2rem;
+.page-header {
+  margin-bottom: var(--space-5);
 }
 
-.card-header {
-  margin-bottom: 1rem;
-}
-
-.card-header h2 {
-  color: #667eea;
-  font-size: 1.5rem;
-  margin: 0;
-}
-
-.card-description {
-  color: #666;
-  margin-bottom: 1.5rem;
-  line-height: 1.6;
+.page-header h1 {
+  font-size: 24px;
+  font-weight: 600;
 }
 
 .action-buttons {
   display: flex;
-  gap: 1rem;
-  margin-top: 1.5rem;
-}
-
-.btn {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 5px;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  background: #e0e0e0;
-  color: #333;
-}
-
-.btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.btn-secondary {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: white;
+  gap: var(--space-3);
 }
 
 .import-section {
-  margin-top: 1.5rem;
+  margin-top: var(--space-4);
 }
 
 .file-upload {
-  margin-bottom: 1rem;
-}
-
-.file-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 1rem 2rem;
-  background: #f5f5f5;
-  border: 2px dashed #ccc;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.file-label:hover {
-  background: #e8e8e8;
-  border-color: #667eea;
-}
-
-.file-icon {
-  color: #667eea;
-  flex-shrink: 0;
-}
-
-.file-name {
-  color: #667eea;
-  font-weight: 500;
+  margin-bottom: var(--space-4);
 }
 
 .file-input {
   display: none;
 }
 
-.inline-icon {
-  display: inline-block;
-  vertical-align: middle;
-  margin-right: 0.25rem;
+.file-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  border: 2px dashed var(--border-primary);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  color: var(--text-secondary);
 }
 
-.spin {
-  animation: spin 1s linear infinite;
+.file-label:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: var(--accent-light);
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+.file-upload.has-file .file-label {
+  border-color: var(--success);
+  color: var(--success);
+  background: var(--success-light);
+}
+
+.file-name {
+  font-weight: 500;
 }
 
 .file-actions {
   display: flex;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
 .validation-result {
   display: flex;
   align-items: flex-start;
-  gap: 1rem;
-  padding: 1rem;
-  border-radius: 8px;
-  margin-bottom: 1.5rem;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
 }
 
 .validation-result.success {
-  background: #e8f5e9;
-  border: 1px solid #4caf50;
+  background: var(--success-light);
+  color: var(--success);
 }
 
 .validation-result.error {
-  background: #ffebee;
-  border: 1px solid #f44336;
+  background: var(--error-light);
+  color: var(--error);
 }
 
-.result-icon {
-  flex-shrink: 0;
-}
-
-.validation-result.success .result-icon {
-  color: #4caf50;
-}
-
-.validation-result.error .result-icon {
-  color: #f44336;
-}
-
-.result-message {
-  flex: 1;
-}
-
-.result-message strong {
+.validation-result strong {
   display: block;
-  margin-bottom: 0.5rem;
-  font-size: 1.1rem;
-}
-
-.result-message p {
-  margin: 0;
-  color: #666;
+  margin-bottom: var(--space-1);
 }
 
 .import-options {
-  background: #f9f9f9;
-  padding: 1rem;
-  border-radius: 8px;
-  margin-bottom: 1.5rem;
+  background: var(--bg-secondary);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
 }
 
 .checkbox-label {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-3);
   cursor: pointer;
   font-weight: 500;
 }
@@ -444,112 +355,34 @@ function downloadConfig() {
   cursor: pointer;
 }
 
-.option-description {
-  margin: 0.5rem 0 0 1.75rem;
-  color: #666;
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-
-.alert {
-  padding: 1rem;
-  border-radius: 8px;
-  margin-bottom: 1rem;
-}
-
-.alert-error {
-  background: #ffebee;
-  border: 1px solid #f44336;
-  color: #c62828;
-}
-
-.alert-success {
-  background: #e8f5e9;
-  border: 1px solid #4caf50;
-  color: #2e7d32;
-}
-
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: white;
-  border-radius: 10px;
-  width: 90%;
-  max-width: 800px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid #e0e0e0;
-}
-
-.modal-header h3 {
-  margin: 0;
-  color: #667eea;
-  font-size: 1.5rem;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #999;
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: all 0.2s;
-}
-
-.close-btn:hover {
-  background: #f5f5f5;
-  color: #333;
-}
-
-.modal-body {
-  flex: 1;
-  overflow: auto;
-  padding: 1.5rem;
+.option-hint {
+  margin: var(--space-2) 0 0 30px;
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .config-preview {
-  background: #f5f5f5;
-  padding: 1rem;
-  border-radius: 8px;
+  background: var(--bg-secondary);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
   overflow: auto;
-  font-family: 'Courier New', monospace;
-  font-size: 0.9rem;
-  line-height: 1.5;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
   margin: 0;
+  max-height: 60vh;
 }
 
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-  padding: 1.5rem;
-  border-top: 1px solid #e0e0e0;
+.modal-lg {
+  max-width: 800px;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>

@@ -1,199 +1,161 @@
 <template>
   <div class="connection-card">
-    <div class="connection-header">
-      <div>
-        <div class="connection-name">{{ connection.config.name }}</div>
+    <div class="card-header-section">
+      <div class="connection-icon">
+        <Database :size="20" />
       </div>
-      <span :class="['status-badge', statusClass]">
-        {{ statusText }}
-      </span>
+      <div class="connection-info">
+        <h3>{{ connection.config.name }}</h3>
+        <span :class="['status-badge', connection.status]">
+          <span :class="['status-dot', connection.status]"></span>
+          {{ getStatusText(connection.status) }}
+        </span>
+      </div>
     </div>
 
     <div class="connection-details">
-      <div class="detail-row">
-        <span class="detail-label">用户名:</span>
+      <div class="detail-item">
+        <span class="detail-label">主机</span>
+        <span class="detail-value">{{ connection.config.host }}:{{ connection.config.port }}</span>
+      </div>
+      <div class="detail-item">
+        <span class="detail-label">数据库</span>
+        <span class="detail-value">{{ connection.config.database }}</span>
+      </div>
+      <div class="detail-item">
+        <span class="detail-label">用户名</span>
         <span class="detail-value">{{ connection.config.username }}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">SSL:</span>
-        <span :class="['badge', connection.config.ssl ? 'badge-enabled' : 'badge-disabled']">
-          {{ connection.config.ssl ? '已启用' : '未启用' }}
-        </span>
-      </div>
-      <div v-if="connection.status" class="detail-row">
-        <span class="detail-label">延迟:</span>
-        <span class="detail-value">{{ connection.status.latency_ms }}ms</span>
       </div>
     </div>
 
-    <div class="connection-actions">
-      <button class="btn btn-success btn-small" @click="$emit('test', connection)" :disabled="testing">
-        <Search :size="14" /> {{ testing ? '测试中...' : '测试连接' }}
+    <div class="card-actions">
+      <button class="btn btn-sm btn-ghost" @click="$emit('test', connection)" :disabled="testing">
+        <Loader2 v-if="testing" :size="14" class="spin" />
+        <Activity v-else :size="14" />
+        <span>{{ testing ? '测试中...' : '测试' }}</span>
       </button>
-      <button class="btn btn-secondary btn-small" @click="$emit('edit', connection)">
-        <Edit2 :size="14" /> 编辑
+      <button class="btn btn-sm btn-ghost" @click="$emit('edit', connection)">
+        <Edit2 :size="14" />
+        <span>编辑</span>
       </button>
-      <button class="btn btn-danger btn-small" @click="$emit('delete', connection)">
-        <Trash2 :size="14" /> 删除
+      <button class="btn btn-sm btn-ghost text-error" @click="$emit('delete', connection)">
+        <Trash2 :size="14" />
+        <span>删除</span>
       </button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { Search, Edit2, Trash2 } from 'lucide-vue-next'
+import { Database, Activity, Edit2, Trash2, Loader2 } from 'lucide-vue-next'
 
-const props = defineProps({
-  connection: {
-    type: Object,
-    required: true
-  },
-  testing: {
-    type: Boolean,
-    default: false
-  }
+defineProps({
+  connection: { type: Object, required: true },
+  testing: { type: Boolean, default: false }
 })
 
 defineEmits(['edit', 'delete', 'test'])
 
-const statusClass = computed(() => {
-  if (!props.connection.status) return 'status-unknown'
-  return props.connection.status.connected ? 'status-connected' : 'status-disconnected'
-})
-
-const statusText = computed(() => {
-  if (!props.connection.status) return '未知'
-  return props.connection.status.connected ? '已连接' : '未连接'
-})
-
-function formatDate(dateString) {
-  if (!dateString) return 'N/A'
-  const date = new Date(dateString)
-  return date.toLocaleString('zh-CN')
+function getStatusText(status) {
+  const map = { connected: '已连接', disconnected: '未连接', error: '错误' }
+  return map[status] || status
 }
 </script>
 
 <style scoped>
 .connection-card {
-  background: #f8f9ff;
-  border: 2px solid #e1e5f2;
-  border-radius: 8px;
-  padding: 1.5rem;
-  transition: all 0.3s ease;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  transition: box-shadow var(--transition-fast);
 }
 
 .connection-card:hover {
-  border-color: #667eea;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+  box-shadow: var(--shadow-sm);
 }
 
-.connection-header {
+.card-header-section {
   display: flex;
-  justify-content: space-between;
-  align-items: start;
-  margin-bottom: 1rem;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
-.connection-name {
-  font-size: 1.2rem;
-  font-weight: bold;
-  color: #333;
-  margin-bottom: 0.25rem;
+.connection-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--accent-light);
+  color: var(--accent-primary);
+  border-radius: var(--radius-md);
 }
 
-.connection-info {
-  font-size: 0.9rem;
-  color: #666;
-  margin-bottom: 0.25rem;
-}
-
-.connection-local {
-  font-size: 0.85rem;
-  color: #667eea;
-  font-weight: 500;
+.connection-info h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: var(--space-1);
 }
 
 .status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 500;
+  gap: var(--space-1);
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
-.status-connected {
-  background: #d4edda;
-  color: #155724;
+.status-badge.connected {
+  background: var(--success-light);
+  color: var(--success);
 }
 
-.status-disconnected {
-  background: #f8d7da;
-  color: #721c24;
-}
-
-.status-unknown {
-  background: #fff3cd;
-  color: #856404;
+.status-badge.error {
+  background: var(--error-light);
+  color: var(--error);
 }
 
 .connection-details {
-  margin: 1rem 0;
-  padding: 1rem;
-  background: white;
-  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
 }
 
-.detail-row {
+.detail-item {
   display: flex;
   justify-content: space-between;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.detail-row:last-child {
-  border-bottom: none;
+  font-size: 13px;
 }
 
 .detail-label {
-  font-weight: 500;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .detail-value {
-  color: #333;
-}
-
-.badge {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.85rem;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
-.badge-enabled {
-  background: #d4edda;
-  color: #155724;
-}
-
-.badge-disabled {
-  background: #f8d7da;
-  color: #721c24;
-}
-
-.connection-actions {
+.card-actions {
   display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>

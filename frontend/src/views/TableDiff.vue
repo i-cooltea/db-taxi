@@ -1,102 +1,118 @@
 <template>
-  <div class="table-diff">
-    <!-- Selection Area -->
-    <div class="selection-area">
-      <div class="selection-panel">
-        <h3>源表</h3>
-        <div class="form-group">
-          <label>连接</label>
-          <select v-model="source.connectionId" @change="onSourceConnectionChange">
-            <option value="">请选择连接</option>
-            <option v-for="conn in connections" :key="conn.config.id" :value="conn.config.id">
-              {{ conn.config.name }} ({{ conn.config.host }}:{{ conn.config.port }})
-            </option>
-          </select>
+  <div>
+    <!-- Page Header -->
+    <div class="page-header">
+      <h1>表对比</h1>
+    </div>
+
+    <!-- Selection Panel -->
+    <div class="card">
+      <div class="selection-area">
+        <!-- Source -->
+        <div class="selection-panel">
+          <h3 class="panel-title">源表</h3>
+          <div class="form-group">
+            <label>连接</label>
+            <select v-model="source.connectionId" @change="onSourceConnectionChange" class="form-control">
+              <option value="">请选择连接</option>
+              <option v-for="conn in connections" :key="conn.config.id" :value="conn.config.id">
+                {{ conn.config.name }} ({{ conn.config.host }}:{{ conn.config.port }})
+              </option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>数据库</label>
+            <select v-model="source.database" @change="onSourceDatabaseChange" :disabled="!source.connectionId" class="form-control">
+              <option value="">请选择数据库</option>
+              <option v-for="db in sourceDatabases" :key="db" :value="db">{{ db }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>表</label>
+            <select v-model="source.table" :disabled="!source.database" class="form-control">
+              <option value="">请选择表</option>
+              <option v-for="t in sourceTables" :key="t" :value="t">{{ t }}</option>
+            </select>
+          </div>
         </div>
-        <div class="form-group">
-          <label>数据库</label>
-          <select v-model="source.database" @change="onSourceDatabaseChange" :disabled="!source.connectionId">
-            <option value="">请选择数据库</option>
-            <option v-for="db in sourceDatabases" :key="db" :value="db">{{ db }}</option>
-          </select>
+
+        <!-- Divider -->
+        <div class="selection-divider">
+          <ArrowRight :size="24" />
         </div>
-        <div class="form-group">
-          <label>表</label>
-          <select v-model="source.table" :disabled="!source.database">
-            <option value="">请选择表</option>
-            <option v-for="t in sourceTables" :key="t" :value="t">{{ t }}</option>
-          </select>
+
+        <!-- Target -->
+        <div class="selection-panel">
+          <h3 class="panel-title">目标表</h3>
+          <div class="form-group">
+            <label>连接</label>
+            <select v-model="target.connectionId" @change="onTargetConnectionChange" class="form-control">
+              <option value="">请选择连接</option>
+              <option v-for="conn in connections" :key="conn.config.id" :value="conn.config.id">
+                {{ conn.config.name }} ({{ conn.config.host }}:{{ conn.config.port }})
+              </option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>数据库</label>
+            <select v-model="target.database" @change="onTargetDatabaseChange" :disabled="!target.connectionId" class="form-control">
+              <option value="">请选择数据库</option>
+              <option v-for="db in targetDatabases" :key="db" :value="db">{{ db }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>表</label>
+            <select v-model="target.table" :disabled="!target.database" class="form-control">
+              <option value="">请选择表</option>
+              <option v-for="t in targetTables" :key="t" :value="t">{{ t }}</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      <div class="selection-divider">
-        <GitCompareArrows :size="32" />
+      <!-- Actions -->
+      <div class="action-bar">
+        <button class="btn btn-primary btn-lg" @click="startCompare" :disabled="!canCompare || comparing">
+          <Loader2 v-if="comparing" :size="18" class="spin" />
+          <GitCompareArrows v-else :size="18" />
+          <span>{{ comparing ? `对比中 ${progress}%...` : '开始对比' }}</span>
+        </button>
+        <button class="btn btn-secondary" @click="exportResult" v-if="diffResult" :disabled="comparing">
+          <Download :size="16" />
+          <span>导出结果</span>
+        </button>
       </div>
 
-      <div class="selection-panel">
-        <h3>目标表</h3>
-        <div class="form-group">
-          <label>连接</label>
-          <select v-model="target.connectionId" @change="onTargetConnectionChange">
-            <option value="">请选择连接</option>
-            <option v-for="conn in connections" :key="conn.config.id" :value="conn.config.id">
-              {{ conn.config.name }} ({{ conn.config.host }}:{{ conn.config.port }})
-            </option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>数据库</label>
-          <select v-model="target.database" @change="onTargetDatabaseChange" :disabled="!target.connectionId">
-            <option value="">请选择数据库</option>
-            <option v-for="db in targetDatabases" :key="db" :value="db">{{ db }}</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>表</label>
-          <select v-model="target.table" :disabled="!target.database">
-            <option value="">请选择表</option>
-            <option v-for="t in targetTables" :key="t" :value="t">{{ t }}</option>
-          </select>
-        </div>
+      <!-- Warning -->
+      <div v-if="diffResult && diffResult.warning" class="alert alert-warning" style="margin-top: 16px;">
+        <AlertTriangle :size="18" />
+        <span>{{ diffResult.warning }}</span>
       </div>
     </div>
 
-    <!-- Action Bar -->
-    <div class="action-bar">
-      <button class="btn-primary" @click="startCompare" :disabled="!canCompare || comparing">
-        <span v-if="comparing">对比中 {{ progress }}%...</span>
-        <span v-else>开始对比</span>
-      </button>
-      <button class="btn-secondary" @click="exportResult" v-if="diffResult" :disabled="comparing">
-        导出结果
-      </button>
-    </div>
-
-    <!-- Warning -->
-    <div class="warning-banner" v-if="diffResult && diffResult.warning">
-      {{ diffResult.warning }}
-    </div>
-
-    <!-- Results Area -->
-    <div class="results-area" v-if="diffResult">
+    <!-- Results -->
+    <div v-if="diffResult" class="card" style="margin-top: 24px;">
+      <!-- Result Tabs -->
       <div class="result-tabs">
         <button :class="['result-tab', { active: activeResultTab === 'schema' }]" @click="activeResultTab = 'schema'">
           结构差异
-          <span class="badge" v-if="schemaDiffCount > 0">{{ schemaDiffCount }}</span>
+          <span v-if="schemaDiffCount > 0" class="badge badge-info">{{ schemaDiffCount }}</span>
         </button>
         <button :class="['result-tab', { active: activeResultTab === 'data' }]" @click="activeResultTab = 'data'" :disabled="!diffResult.data_diff || !!diffResult.warning">
           数据差异
-          <span class="badge" v-if="dataDiffCount > 0">{{ dataDiffCount }}</span>
+          <span v-if="dataDiffCount > 0" class="badge badge-info">{{ dataDiffCount }}</span>
         </button>
       </div>
 
       <!-- Schema Diff -->
-      <div v-if="activeResultTab === 'schema'" class="schema-diff">
-        <div v-if="diffResult.schema_diff && diffResult.schema_diff.is_same" class="no-diff">
-          结构完全一致，无差异
+      <div v-if="activeResultTab === 'schema'" class="result-content">
+        <div v-if="diffResult.schema_diff && diffResult.schema_diff.is_same" class="empty-state">
+          <CheckCircle :size="32" class="empty-state-icon" style="color: var(--success);" />
+          <h3>结构完全一致</h3>
+          <p>两个表的列结构完全相同</p>
         </div>
-        <template v-else>
-          <table class="diff-table" v-if="diffResult.schema_diff">
+        <div v-else-if="diffResult.schema_diff" class="table-container">
+          <table class="data-table">
             <thead>
               <tr>
                 <th>列名</th>
@@ -109,111 +125,115 @@
             </thead>
             <tbody>
               <tr v-for="col in diffResult.schema_diff.added_columns" :key="'add-'+col.name" class="row-added">
-                <td>{{ col.name }}</td>
-                <td><span class="status-tag added">新增</span></td>
+                <td class="font-medium">{{ col.name }}</td>
+                <td><span class="badge badge-success">新增</span></td>
                 <td>{{ col.type }}</td>
                 <td>-</td>
-                <td>{{ col.nullable ? 'YES' : 'NO' }}</td>
+                <td>{{ col.nullable ? '是' : '否' }}</td>
                 <td>-</td>
               </tr>
               <tr v-for="col in diffResult.schema_diff.removed_columns" :key="'rm-'+col.name" class="row-removed">
-                <td>{{ col.name }}</td>
-                <td><span class="status-tag removed">删除</span></td>
+                <td class="font-medium">{{ col.name }}</td>
+                <td><span class="badge badge-error">删除</span></td>
                 <td>-</td>
                 <td>{{ col.type }}</td>
                 <td>-</td>
-                <td>{{ col.nullable ? 'YES' : 'NO' }}</td>
+                <td>{{ col.nullable ? '是' : '否' }}</td>
               </tr>
               <tr v-for="col in diffResult.schema_diff.modified_columns" :key="'mod-'+col.name" class="row-modified">
-                <td>{{ col.name }}</td>
-                <td><span class="status-tag modified">变更</span></td>
+                <td class="font-medium">{{ col.name }}</td>
+                <td><span class="badge badge-warning">变更</span></td>
                 <td>{{ col.source_type }}</td>
                 <td>{{ col.target_type }}</td>
-                <td>{{ col.source_nullable ? 'YES' : 'NO' }}</td>
-                <td>{{ col.target_nullable ? 'YES' : 'NO' }}</td>
+                <td>{{ col.source_nullable ? '是' : '否' }}</td>
+                <td>{{ col.target_nullable ? '是' : '否' }}</td>
               </tr>
             </tbody>
           </table>
-        </template>
+        </div>
       </div>
 
       <!-- Data Diff -->
-      <div v-if="activeResultTab === 'data'" class="data-diff">
-        <div v-if="diffResult.data_diff" class="data-diff-summary">
-          <span class="diff-stat">仅源表: {{ diffResult.data_diff.only_in_source?.length || 0 }} 行</span>
-          <span class="diff-stat">仅目标表: {{ diffResult.data_diff.only_in_target?.length || 0 }} 行</span>
-          <span class="diff-stat">值不同: {{ diffResult.data_diff.value_diff?.length || 0 }} 行</span>
-          <span class="diff-stat partial" v-if="diffResult.data_diff.partial">
-            (部分对比: {{ diffResult.data_diff.compared_rows }}/{{ diffResult.data_diff.total_rows }} 行)
-          </span>
+      <div v-if="activeResultTab === 'data'" class="result-content">
+        <div v-if="diffResult.data_diff" class="diff-summary">
+          <div class="stat-item">
+            <span class="stat-label">仅源表</span>
+            <span class="stat-value">{{ diffResult.data_diff.only_in_source?.length || 0 }} 行</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">仅目标表</span>
+            <span class="stat-value">{{ diffResult.data_diff.only_in_target?.length || 0 }} 行</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">值不同</span>
+            <span class="stat-value">{{ diffResult.data_diff.value_diff?.length || 0 }} 行</span>
+          </div>
+          <div v-if="diffResult.data_diff.partial" class="stat-item warning">
+            <span class="stat-label">部分对比</span>
+            <span class="stat-value">{{ diffResult.data_diff.compared_rows }}/{{ diffResult.data_diff.total_rows }} 行</span>
+          </div>
         </div>
 
         <!-- Value Diff -->
-        <div v-if="diffResult.data_diff && diffResult.data_diff.value_diff?.length" class="diff-section">
+        <div v-if="diffResult.data_diff?.value_diff?.length" class="diff-section">
           <h4>值不同的行</h4>
-          <div class="pagination" v-if="valueDiffTotalPages > 1">
-            <button @click="valueDiffPage > 1 && valueDiffPage--" :disabled="valueDiffPage <= 1">&lt;</button>
-            <span>{{ valueDiffPage }} / {{ valueDiffTotalPages }}</span>
-            <button @click="valueDiffPage < valueDiffTotalPages && valueDiffPage++" :disabled="valueDiffPage >= valueDiffTotalPages">&gt;</button>
+          <div v-if="valueDiffTotalPages > 1" class="pagination">
+            <button class="btn btn-sm btn-secondary" @click="valueDiffPage--" :disabled="valueDiffPage <= 1">
+              <ChevronLeft :size="14" />
+            </button>
+            <span class="page-info">{{ valueDiffPage }} / {{ valueDiffTotalPages }}</span>
+            <button class="btn btn-sm btn-secondary" @click="valueDiffPage++" :disabled="valueDiffPage >= valueDiffTotalPages">
+              <ChevronRight :size="14" />
+            </button>
           </div>
-          <table class="diff-table data-table">
-            <thead>
-              <tr>
-                <th>主键</th>
-                <th>差异列</th>
-                <th>源表值</th>
-                <th>目标表值</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="entry in paginatedValueDiff" :key="JSON.stringify(entry.primary_key)">
-                <td>{{ formatPK(entry.primary_key) }}</td>
-                <td>
-                  <span v-for="d in entry.differences" :key="d.column" class="col-name">{{ d.column }} </span>
-                </td>
-                <td>
-                  <span v-for="d in entry.differences" :key="'s-'+d.column" class="val-diff">{{ formatVal(d.source_value) }} </span>
-                </td>
-                <td>
-                  <span v-for="d in entry.differences" :key="'t-'+d.column" class="val-diff">{{ formatVal(d.target_value) }} </span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>主键</th>
+                  <th>差异列</th>
+                  <th>源表值</th>
+                  <th>目标表值</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="entry in paginatedValueDiff" :key="JSON.stringify(entry.primary_key)">
+                  <td class="font-medium">{{ formatPK(entry.primary_key) }}</td>
+                  <td>
+                    <span v-for="d in entry.differences" :key="d.column" class="tag">{{ d.column }}</span>
+                  </td>
+                  <td class="text-error">{{ formatVal(entry.differences[0]?.source_value) }}</td>
+                  <td class="text-success">{{ formatVal(entry.differences[0]?.target_value) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <!-- Only in Source -->
-        <div v-if="diffResult.data_diff && diffResult.data_diff.only_in_source?.length" class="diff-section">
+        <div v-if="diffResult.data_diff?.only_in_source?.length" class="diff-section">
           <h4>仅存在于源表 ({{ diffResult.data_diff.only_in_source.length }} 行)</h4>
-          <div class="pagination" v-if="onlySourceTotalPages > 1">
-            <button @click="onlySourcePage > 1 && onlySourcePage--" :disabled="onlySourcePage <= 1">&lt;</button>
-            <span>{{ onlySourcePage }} / {{ onlySourceTotalPages }}</span>
-            <button @click="onlySourcePage < onlySourceTotalPages && onlySourcePage++" :disabled="onlySourcePage >= onlySourceTotalPages">&gt;</button>
-          </div>
           <div class="row-cards">
-            <div v-for="(row, idx) in paginatedOnlySource" :key="idx" class="row-card source-only">
-              <span v-for="(val, key) in row" :key="key" class="kv"><strong>{{ key }}</strong>: {{ formatVal(val) }}</span>
+            <div v-for="(row, idx) in diffResult.data_diff.only_in_source.slice(0, 10)" :key="idx" class="row-card source-only">
+              <span v-for="(val, key) in row" :key="key" class="kv"><strong>{{ key }}:</strong> {{ formatVal(val) }}</span>
             </div>
           </div>
         </div>
 
         <!-- Only in Target -->
-        <div v-if="diffResult.data_diff && diffResult.data_diff.only_in_target?.length" class="diff-section">
+        <div v-if="diffResult.data_diff?.only_in_target?.length" class="diff-section">
           <h4>仅存在于目标表 ({{ diffResult.data_diff.only_in_target.length }} 行)</h4>
-          <div class="pagination" v-if="onlyTargetTotalPages > 1">
-            <button @click="onlyTargetPage > 1 && onlyTargetPage--" :disabled="onlyTargetPage <= 1">&lt;</button>
-            <span>{{ onlyTargetPage }} / {{ onlyTargetTotalPages }}</span>
-            <button @click="onlyTargetPage < onlyTargetTotalPages && onlyTargetPage++" :disabled="onlyTargetPage >= onlyTargetTotalPages">&gt;</button>
-          </div>
           <div class="row-cards">
-            <div v-for="(row, idx) in paginatedOnlyTarget" :key="idx" class="row-card target-only">
-              <span v-for="(val, key) in row" :key="key" class="kv"><strong>{{ key }}</strong>: {{ formatVal(val) }}</span>
+            <div v-for="(row, idx) in diffResult.data_diff.only_in_target.slice(0, 10)" :key="idx" class="row-card target-only">
+              <span v-for="(val, key) in row" :key="key" class="kv"><strong>{{ key }}:</strong> {{ formatVal(val) }}</span>
             </div>
           </div>
         </div>
 
-        <div v-if="dataDiffCount === 0 && diffResult.data_diff" class="no-diff">
-          数据完全一致，无差异
+        <div v-if="dataDiffCount === 0 && diffResult.data_diff" class="empty-state">
+          <CheckCircle :size="32" class="empty-state-icon" style="color: var(--success);" />
+          <h3>数据完全一致</h3>
+          <p>两个表的数据内容完全相同</p>
         </div>
       </div>
     </div>
@@ -222,16 +242,14 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { GitCompareArrows } from 'lucide-vue-next'
+import { GitCompareArrows, ArrowRight, Loader2, Download, CheckCircle, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
 
 const store = useSyncStore()
-
 const connections = computed(() => store.connections)
 
 const source = ref({ connectionId: '', database: '', table: '' })
 const target = ref({ connectionId: '', database: '', table: '' })
-
 const sourceDatabases = ref([])
 const sourceTables = ref([])
 const targetDatabases = ref([])
@@ -242,10 +260,8 @@ const progress = ref(0)
 const diffResult = ref(null)
 const activeResultTab = ref('schema')
 
-const pageSize = 20
+const pageSize = 10
 const valueDiffPage = ref(1)
-const onlySourcePage = ref(1)
-const onlyTargetPage = ref(1)
 
 const canCompare = computed(() =>
   source.value.connectionId && source.value.database && source.value.table &&
@@ -265,8 +281,6 @@ const dataDiffCount = computed(() => {
 })
 
 const valueDiffTotalPages = computed(() => Math.ceil((diffResult.value?.data_diff?.value_diff?.length || 0) / pageSize))
-const onlySourceTotalPages = computed(() => Math.ceil((diffResult.value?.data_diff?.only_in_source?.length || 0) / pageSize))
-const onlyTargetTotalPages = computed(() => Math.ceil((diffResult.value?.data_diff?.only_in_target?.length || 0) / pageSize))
 
 const paginatedValueDiff = computed(() => {
   const arr = diffResult.value?.data_diff?.value_diff || []
@@ -274,22 +288,8 @@ const paginatedValueDiff = computed(() => {
   return arr.slice(start, start + pageSize)
 })
 
-const paginatedOnlySource = computed(() => {
-  const arr = diffResult.value?.data_diff?.only_in_source || []
-  const start = (onlySourcePage.value - 1) * pageSize
-  return arr.slice(start, start + pageSize)
-})
-
-const paginatedOnlyTarget = computed(() => {
-  const arr = diffResult.value?.data_diff?.only_in_target || []
-  const start = (onlyTargetPage.value - 1) * pageSize
-  return arr.slice(start, start + pageSize)
-})
-
 onMounted(() => {
-  if (store.connections.length === 0) {
-    store.fetchConnections()
-  }
+  if (store.connections.length === 0) store.fetchConnections()
 })
 
 async function onSourceConnectionChange() {
@@ -347,8 +347,6 @@ async function startCompare() {
   diffResult.value = null
   activeResultTab.value = 'schema'
   valueDiffPage.value = 1
-  onlySourcePage.value = 1
-  onlyTargetPage.value = 1
 
   try {
     const res = await fetch('/api/sync/diff/compare', {
@@ -363,8 +361,6 @@ async function startCompare() {
     if (!result.success) throw new Error(result.error || '对比失败')
 
     const taskId = result.data.task_id
-
-    // Poll for result
     while (true) {
       await new Promise(r => setTimeout(r, 500))
       const pollRes = await fetch(`/api/sync/diff/${taskId}`)
@@ -378,9 +374,7 @@ async function startCompare() {
         diffResult.value = task.result
         break
       }
-      if (task.status === 'failed') {
-        throw new Error(task.error || '对比失败')
-      }
+      if (task.status === 'failed') throw new Error(task.error || '对比失败')
     }
   } catch (e) {
     alert(e.message)
@@ -406,165 +400,87 @@ function formatPK(pk) {
 
 function formatVal(v) {
   if (v === null || v === undefined) return 'NULL'
-  return String(v)
+  return String(v).length > 50 ? String(v).slice(0, 50) + '...' : String(v)
 }
 </script>
 
 <style scoped>
-.table-diff {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+.page-header {
+  margin-bottom: var(--space-5);
+}
+
+.page-header h1 {
+  font-size: 24px;
+  font-weight: 600;
 }
 
 .selection-area {
-  display: flex;
-  gap: 1rem;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: var(--space-5);
+  align-items: start;
 }
 
 .selection-panel {
-  flex: 1;
-  background: #f8f9fa;
-  border-radius: 8px;
-  padding: 1.25rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
 }
 
-.selection-panel h3 {
-  margin: 0 0 1rem 0;
-  font-size: 1.1rem;
-  color: #333;
+.panel-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: var(--space-4);
+  color: var(--text-primary);
 }
 
 .selection-divider {
   display: flex;
   align-items: center;
-  padding-top: 2rem;
-  color: #667eea;
-}
-
-.form-group {
-  margin-bottom: 0.75rem;
-}
-
-.form-group label {
-  display: block;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #555;
-  margin-bottom: 0.25rem;
-}
-
-.form-group select {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  background: white;
-}
-
-.form-group select:disabled {
-  background: #eee;
-  cursor: not-allowed;
+  justify-content: center;
+  padding-top: 80px;
+  color: var(--text-secondary);
 }
 
 .action-bar {
   display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-.btn-primary {
-  padding: 0.65rem 2rem;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.btn-primary:disabled {
-  background: #aaa;
-  cursor: not-allowed;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #5a6fd6;
-}
-
-.btn-secondary {
-  padding: 0.65rem 1.5rem;
-  background: white;
-  color: #667eea;
-  border: 1px solid #667eea;
-  border-radius: 6px;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #f0f2ff;
-}
-
-.warning-banner {
-  background: #fff3cd;
-  border: 1px solid #ffc107;
-  color: #856404;
-  padding: 0.75rem 1rem;
-  border-radius: 6px;
-  font-size: 0.9rem;
-}
-
-.results-area {
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  overflow: hidden;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border-secondary);
 }
 
 .result-tabs {
   display: flex;
-  background: #f8f9fa;
-  border-bottom: 2px solid #e9ecef;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--border-secondary);
+  margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-5)) var(--space-4);
+  padding: 0 var(--space-5);
 }
 
 .result-tab {
-  flex: 1;
-  padding: 0.75rem 1rem;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 0.95rem;
-  color: #666;
-  transition: all 0.2s;
-  position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-bottom: -1px;
 }
 
 .result-tab:hover:not(:disabled) {
-  color: #667eea;
+  color: var(--text-primary);
 }
 
 .result-tab.active {
-  color: #667eea;
-  font-weight: 600;
-  background: white;
-}
-
-.result-tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: #667eea;
+  color: var(--accent-primary);
+  border-bottom-color: var(--accent-primary);
 }
 
 .result-tab:disabled {
@@ -572,157 +488,149 @@ function formatVal(v) {
   cursor: not-allowed;
 }
 
-.badge {
-  background: #667eea;
-  color: white;
-  border-radius: 10px;
-  padding: 0.1rem 0.5rem;
-  font-size: 0.75rem;
-  min-width: 1.2rem;
-  text-align: center;
+.result-content {
+  padding-top: var(--space-2);
 }
 
-.schema-diff, .data-diff {
-  padding: 1.25rem;
-}
-
-.no-diff {
-  text-align: center;
-  color: #28a745;
-  padding: 2rem;
-  font-size: 1.1rem;
-}
-
-.diff-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-
-.diff-table th {
-  background: #f0f2ff;
-  padding: 0.6rem 0.75rem;
-  text-align: left;
-  font-weight: 600;
-  color: #444;
-  border-bottom: 2px solid #ddd;
-}
-
-.diff-table td {
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid #eee;
-}
-
-.row-added td { background: #e8f5e9; }
-.row-removed td { background: #ffebee; }
-.row-modified td { background: #fff8e1; }
-
-.status-tag {
-  display: inline-block;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.status-tag.added { background: #c8e6c9; color: #2e7d32; }
-.status-tag.removed { background: #ffcdd2; color: #c62828; }
-.status-tag.modified { background: #fff9c4; color: #f57f17; }
-
-.data-diff-summary {
+.diff-summary {
   display: flex;
-  gap: 1.5rem;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
+  gap: var(--space-6);
+  margin-bottom: var(--space-5);
+  padding: var(--space-4);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
 }
 
-.diff-stat {
-  font-size: 0.9rem;
-  color: #555;
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
 }
 
-.diff-stat.partial {
-  color: #e65100;
+.stat-item.warning .stat-label,
+.stat-item.warning .stat-value {
+  color: var(--warning);
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 20px;
   font-weight: 600;
+  color: var(--text-primary);
 }
 
 .diff-section {
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--space-5);
 }
 
 .diff-section h4 {
-  font-size: 0.95rem;
-  color: #333;
-  margin: 0 0 0.75rem 0;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: var(--space-3);
+  color: var(--text-primary);
 }
 
 .pagination {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
 }
 
-.pagination button {
-  padding: 0.3rem 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: white;
-  cursor: pointer;
-}
-
-.pagination button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.val-diff {
-  color: #e65100;
-  font-weight: 600;
-}
-
-.col-name {
-  display: inline-block;
-  background: #fff9c4;
-  padding: 0.1rem 0.35rem;
-  border-radius: 3px;
-  margin-right: 0.25rem;
-  font-size: 0.85rem;
+.page-info {
+  font-size: 14px;
+  color: var(--text-secondary);
 }
 
 .row-cards {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .row-card {
-  background: #f8f9fa;
-  border-radius: 6px;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.85rem;
-  border-left: 3px solid #ccc;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font-size: 13px;
+  border-left: 3px solid var(--border-primary);
 }
 
-.row-card.source-only { border-left-color: #4caf50; }
-.row-card.target-only { border-left-color: #f44336; }
+.row-card.source-only {
+  border-left-color: var(--success);
+  background: var(--success-light);
+}
+
+.row-card.target-only {
+  border-left-color: var(--error);
+  background: var(--error-light);
+}
 
 .kv {
   display: inline-block;
-  margin-right: 1rem;
+  margin-right: var(--space-4);
+  margin-bottom: var(--space-1);
 }
 
 .kv strong {
-  color: #667eea;
+  color: var(--accent-primary);
+}
+
+.tag {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  background: var(--warning-light);
+  color: var(--warning);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  margin-right: var(--space-1);
+}
+
+.row-added {
+  background: var(--success-light);
+}
+
+.row-removed {
+  background: var(--error-light);
+}
+
+.row-modified {
+  background: var(--warning-light);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 @media (max-width: 768px) {
   .selection-area {
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
+
   .selection-divider {
-    padding-top: 0;
+    padding: var(--space-2) 0;
     transform: rotate(90deg);
+  }
+
+  .diff-summary {
+    flex-wrap: wrap;
+    gap: var(--space-4);
+  }
+
+  .action-bar {
+    flex-direction: column;
   }
 }
 </style>

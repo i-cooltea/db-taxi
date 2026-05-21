@@ -1,42 +1,50 @@
 <template>
-  <div class="container">
-    <header class="page-header">
-      <div class="header-content">
-        <div class="logo">
-          <Truck class="logo-icon" />
-          <h1>DB-Taxi</h1>
+  <div class="app-layout">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-container">
+        <div class="header-left">
+          <div class="logo">
+            <Database :size="24" />
+            <span>DB-Taxi</span>
+          </div>
+          <nav class="main-nav">
+            <button
+              v-for="tab in tabs"
+              :key="tab.name"
+              :class="['nav-tab', { active: activeTab === tab.name }]"
+              @click="activeTab = tab.name"
+            >
+              <component :is="tab.icon" :size="16" />
+              <span>{{ tab.label }}</span>
+            </button>
+          </nav>
         </div>
-        <p>MySQL 数据库同步管理系统</p>
+        <div class="header-right">
+          <ThemeToggle />
+        </div>
       </div>
     </header>
 
-    <div class="tabs-container">
-      <div class="tabs">
-        <button 
-          v-for="tab in tabs" 
-          :key="tab.name"
-          :class="['tab', { active: activeTab === tab.name }]"
-          @click="activeTab = tab.name"
-        >
-          <component :is="tab.icon" class="tab-icon" :size="20" />
-          <span class="tab-label">{{ tab.label }}</span>
-        </button>
+    <!-- Main Content -->
+    <main class="app-main">
+      <div class="container">
+        <div class="page-content">
+          <Connections v-if="activeTab === 'connections'" />
+          <SyncConfig v-else-if="activeTab === 'sync'" />
+          <TableDiff v-else-if="activeTab === 'diff'" />
+          <Monitoring v-else-if="activeTab === 'monitoring'" />
+          <ConfigManagement v-else-if="activeTab === 'config'" />
+        </div>
       </div>
-
-      <div class="tab-content">
-        <Connections v-if="activeTab === 'connections'" />
-        <SyncConfig v-else-if="activeTab === 'sync'" />
-        <TableDiff v-else-if="activeTab === 'diff'" />
-        <Monitoring v-else-if="activeTab === 'monitoring'" />
-        <ConfigManagement v-else-if="activeTab === 'config'" />
-      </div>
-    </div>
+    </main>
   </div>
 </template>
 
 <script setup>
 import { ref } from 'vue'
-import { Truck, Plug, RefreshCw, BarChart3, Settings, GitCompareArrows } from 'lucide-vue-next'
+import { Database, Plug, RefreshCw, BarChart3, Settings, GitCompareArrows } from 'lucide-vue-next'
+import ThemeToggle from '../components/ThemeToggle.vue'
 import Connections from './Connections.vue'
 import SyncConfig from './SyncConfig.vue'
 import Monitoring from './Monitoring.vue'
@@ -55,118 +63,114 @@ const tabs = [
 </script>
 
 <style scoped>
-.page-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 2rem;
-  border-radius: 10px;
-  margin-bottom: 2rem;
-  text-align: center;
-}
-
-.header-content {
+.app-layout {
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+.app-header {
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-primary);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 var(--space-5);
+  height: 64px;
+  display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-7);
 }
 
 .logo {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--space-2);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
-.logo-icon {
-  width: 2.5rem;
-  height: 2.5rem;
+.logo svg {
+  color: var(--accent-primary);
 }
 
-.page-header h1 {
-  font-size: 2.5rem;
-  margin: 0;
-}
-
-.page-header p {
-  font-size: 1.1rem;
-  opacity: 0.9;
-  margin: 0;
-}
-
-.tabs-container {
-  background: white;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  overflow: hidden;
-}
-
-.tabs {
-  display: flex;
-  background: #f8f9fa;
-  border-bottom: 2px solid #e9ecef;
-}
-
-.tab {
-  flex: 1;
-  padding: 1.2rem 1.5rem;
-  background: none;
-  border: none;
-  cursor: pointer;
+.main-nav {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  font-size: 1rem;
-  color: #666;
-  transition: all 0.3s ease;
-  position: relative;
+  gap: var(--space-1);
 }
 
-.tab:hover {
-  background: rgba(102, 126, 234, 0.05);
-  color: #667eea;
+.nav-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
 }
 
-.tab.active {
-  color: #667eea;
-  font-weight: 600;
-  background: white;
+.nav-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
 }
 
-.tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: #667eea;
+.nav-tab.active {
+  color: var(--accent-primary);
+  background: var(--accent-light);
 }
 
-.tab-icon {
-  flex-shrink: 0;
+.app-main {
+  flex: 1;
+  padding: var(--space-5) 0;
 }
 
-.tab-label {
-  font-size: 1rem;
+.page-content {
+  animation: fadeIn var(--transition-normal);
 }
 
-.tab-content {
-  padding: 2rem;
-  min-height: 500px;
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
+/* Responsive */
 @media (max-width: 768px) {
-  .tabs {
-    flex-wrap: wrap;
+  .header-container {
+    padding: 0 var(--space-4);
   }
-  
-  .tab {
-    flex: 1 1 50%;
+
+  .logo span {
+    display: none;
   }
-  
-  .tab-label {
-    font-size: 0.9rem;
+
+  .main-nav {
+    gap: 0;
+  }
+
+  .nav-tab {
+    padding: var(--space-2);
+  }
+
+  .nav-tab span {
+    display: none;
   }
 }
 </style>

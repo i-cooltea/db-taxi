@@ -1,35 +1,43 @@
 <template>
   <div>
-
+    <!-- Alerts -->
     <div v-if="error" class="alert alert-error">
-      {{ error }}
+      <AlertCircle :size="18" />
+      <span>{{ error }}</span>
       <button class="alert-close" @click="error = null">&times;</button>
     </div>
 
     <div v-if="successMessage" class="alert alert-success">
-      {{ successMessage }}
+      <CheckCircle :size="18" />
+      <span>{{ successMessage }}</span>
       <button class="alert-close" @click="successMessage = null">&times;</button>
     </div>
 
+    <!-- Page Header -->
+    <div class="page-header">
+      <h1>连接管理</h1>
+      <button class="btn btn-primary" @click="showAddModal = true">
+        <Plus :size="16" />
+        <span>添加连接</span>
+      </button>
+    </div>
+
+    <!-- Content Card -->
     <div class="card">
-      <div class="card-header">
-        <h2><List :size="20" class="inline-icon" /> 连接列表</h2>
-        <button class="btn" @click="showAddModal = true">
-          <Plus :size="18" /> 添加连接
-        </button>
+      <!-- Loading State -->
+      <div v-if="loading && connections.length === 0" class="loading-state">
+        <div class="loading-spinner"></div>
+        <p class="text-secondary">加载连接列表...</p>
       </div>
 
-      <div v-if="loading && connections.length === 0" class="loading">
-        <div class="spinner"></div>
-        <p>加载连接列表...</p>
-      </div>
-
+      <!-- Empty State -->
       <div v-else-if="connections.length === 0" class="empty-state">
-        <Plug class="empty-icon" :size="64" />
+        <Plug :size="48" class="empty-state-icon" />
         <h3>还没有数据库连接</h3>
         <p>点击上方"添加连接"按钮创建第一个数据库连接</p>
       </div>
 
+      <!-- Connection Grid -->
       <div v-else class="connections-grid">
         <ConnectionCard
           v-for="connection in connections"
@@ -43,7 +51,7 @@
       </div>
     </div>
 
-    <!-- Add/Edit Connection Modal -->
+    <!-- Modals -->
     <ConnectionModal
       v-if="showAddModal || showEditModal"
       :connection="editingConnection"
@@ -51,19 +59,22 @@
       @save="saveConnection"
     />
 
-    <!-- Delete Confirmation Modal -->
-    <div v-if="showDeleteModal" class="modal" @click.self="showDeleteModal = false">
-      <div class="modal-content modal-small">
+    <!-- Delete Modal -->
+    <div v-if="showDeleteModal" class="modal-overlay" @click.self="showDeleteModal = false">
+      <div class="modal-content">
         <div class="modal-header">
           <h2>确认删除</h2>
-          <span class="close" @click="showDeleteModal = false">&times;</span>
+          <button class="modal-close" @click="showDeleteModal = false">&times;</button>
         </div>
-        <p>确定要删除连接 <strong>{{ deletingConnection?.config.name }}</strong> 吗？</p>
-        <p class="warning"><AlertTriangle :size="16" class="inline-icon" /> 此操作将同时删除与此连接相关的所有同步配置和任务。</p>
-        <div class="form-actions">
-          <button class="btn btn-secondary" @click="showDeleteModal = false">
-            取消
-          </button>
+        <div class="modal-body">
+          <p>确定要删除连接 <strong>{{ deletingConnection?.config.name }}</strong> 吗？</p>
+          <div class="alert alert-warning" style="margin-top: 16px;">
+            <AlertTriangle :size="16" />
+            <span>此操作将同时删除与此连接相关的所有同步配置和任务。</span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="showDeleteModal = false">取消</button>
           <button class="btn btn-danger" @click="deleteConnection" :disabled="deleting">
             {{ deleting ? '删除中...' : '确认删除' }}
           </button>
@@ -76,7 +87,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
-import { Plug, List, Plus, AlertTriangle } from 'lucide-vue-next'
+import { Plus, Plug, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
 import ConnectionCard from '../components/ConnectionCard.vue'
 import ConnectionModal from '../components/ConnectionModal.vue'
@@ -114,10 +125,8 @@ function confirmDelete(connection) {
 
 async function deleteConnection() {
   if (!deletingConnection.value) return
-
   deleting.value = true
   error.value = null
-
   try {
     await syncStore.deleteConnection(deletingConnection.value.config.id)
     successMessage.value = '连接已成功删除'
@@ -134,7 +143,6 @@ async function testConnectionStatus(connection) {
   const connectionId = connection.config.id
   testingConnections.value.add(connectionId)
   error.value = null
-
   try {
     const status = await syncStore.testConnection(connectionId)
     if (status.connected) {
@@ -151,14 +159,11 @@ async function testConnectionStatus(connection) {
 
 async function saveConnection(connectionData) {
   error.value = null
-
   try {
     if (editingConnection.value) {
-      // Update existing connection
       await syncStore.updateConnection(editingConnection.value.config.id, connectionData)
       successMessage.value = '连接已成功更新'
     } else {
-      // Create new connection
       await syncStore.createConnection(connectionData)
       successMessage.value = '连接已成功创建'
     }
@@ -177,126 +182,35 @@ function closeModal() {
 </script>
 
 <style scoped>
-.card-header {
+.page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--space-5);
 }
 
-.card h2 {
-  color: #667eea;
-  font-size: 1.5rem;
+.page-header h1 {
+  font-size: 24px;
+  font-weight: 600;
 }
 
-.loading {
-  text-align: center;
-  padding: 3rem;
-}
-
-.spinner {
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #667eea;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.empty-state {
-  text-align: center;
-  padding: 3rem;
-  color: #666;
-}
-
-.empty-icon {
-  color: #667eea;
-  opacity: 0.5;
-  margin-bottom: 1rem;
-}
-
-.inline-icon {
-  display: inline-block;
-  vertical-align: middle;
-  margin-right: 0.25rem;
-}
-
-.empty-state h3 {
-  color: #333;
-  margin-bottom: 0.5rem;
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-7);
+  gap: var(--space-4);
 }
 
 .connections-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: var(--space-4);
 }
 
-.modal-small {
-  max-width: 500px;
-}
-
-.warning {
-  color: #856404;
-  background: #fff3cd;
-  padding: 0.75rem;
-  border-radius: 5px;
-  border: 1px solid #ffeaa7;
-  margin: 1rem 0;
-}
-
-.form-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  margin-top: 1.5rem;
-}
-
-.alert {
-  padding: 1rem;
-  border-radius: 5px;
-  margin-bottom: 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  animation: slideIn 0.3s;
-}
-
-.alert-success {
-  background: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
-}
-
-.alert-error {
-  background: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
-}
-
-.alert-close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: inherit;
-  opacity: 0.7;
-  padding: 0;
-  line-height: 1;
-}
-
-.alert-close:hover {
-  opacity: 1;
-}
-
-@keyframes slideIn {
-  from { transform: translateY(-20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+@media (max-width: 768px) {
+  .connections-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
