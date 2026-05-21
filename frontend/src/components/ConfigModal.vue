@@ -64,9 +64,10 @@
 
           <div class="form-group">
             <label for="source-connection">源连接（数据来源）*</label>
-            <select 
-              id="source-connection" 
-              v-model="formData.source_connection_id" 
+            <select
+              id="source-connection"
+              class="form-control"
+              v-model="formData.source_connection_id"
               required
               @change="onSourceConnectionChange"
             >
@@ -86,6 +87,7 @@
             <label for="source-database">源数据库 *</label>
             <select
               id="source-database"
+              class="form-control"
               v-model="formData.source_database"
               required
               :disabled="!formData.source_connection_id || loadingDatabases"
@@ -103,9 +105,10 @@
 
           <div class="form-group">
             <label for="target-connection">目标连接（数据目标）*</label>
-            <select 
-              id="target-connection" 
-              v-model="formData.target_connection_id" 
+            <select
+              id="target-connection"
+              class="form-control"
+              v-model="formData.target_connection_id"
               required
             >
               <option value="">请选择目标数据库连接</option>
@@ -125,6 +128,7 @@
             <label for="target-database">目标数据库名称 *</label>
             <input
               id="target-database"
+              class="form-control"
               v-model="formData.target_database"
               type="text"
               required
@@ -136,10 +140,11 @@
 
           <div class="form-group">
             <label for="name">配置名称 *</label>
-            <input 
-              id="name" 
-              v-model="formData.name" 
-              type="text" 
+            <input
+              id="name"
+              class="form-control"
+              v-model="formData.name"
+              type="text"
               required
             >
             <small>为此同步配置指定一个易于识别的名称</small>
@@ -147,7 +152,7 @@
 
           <div class="form-group">
             <label for="sync-mode">默认同步模式 *</label>
-            <select id="sync-mode" v-model="formData.sync_mode" required>
+            <select id="sync-mode" class="form-control" v-model="formData.sync_mode" required>
               <option value="full">全量同步</option>
               <option value="incremental">增量同步</option>
             </select>
@@ -156,10 +161,11 @@
 
           <div class="form-group">
             <label for="schedule">同步计划</label>
-            <input 
-              id="schedule" 
-              v-model="formData.schedule" 
-              type="text" 
+            <input
+              id="schedule"
+              class="form-control"
+              v-model="formData.schedule"
+              type="text"
               placeholder="0 */6 * * *"
             >
             <small>使用 Cron 表达式设置定时同步（留空表示手动触发）</small>
@@ -348,11 +354,12 @@
           <div class="form-row">
             <div class="form-group">
               <label for="batch-size">批处理大小</label>
-              <input 
-                id="batch-size" 
-                v-model.number="formData.options.batch_size" 
-                type="number" 
-                min="100" 
+              <input
+                id="batch-size"
+                class="form-control"
+                v-model.number="formData.options.batch_size"
+                type="number"
+                min="100"
                 max="10000"
               >
               <small>每批处理的记录数</small>
@@ -360,11 +367,12 @@
 
             <div class="form-group">
               <label for="max-concurrency">最大并发数</label>
-              <input 
-                id="max-concurrency" 
-                v-model.number="formData.options.max_concurrency" 
-                type="number" 
-                min="1" 
+              <input
+                id="max-concurrency"
+                class="form-control"
+                v-model.number="formData.options.max_concurrency"
+                type="number"
+                min="1"
                 max="20"
               >
               <small>同时同步的表数量</small>
@@ -373,7 +381,7 @@
 
           <div class="form-group">
             <label for="conflict-resolution">冲突解决策略</label>
-            <select id="conflict-resolution" v-model="formData.options.conflict_resolution">
+            <select id="conflict-resolution" class="form-control" v-model="formData.options.conflict_resolution">
               <option value="skip">跳过</option>
               <option value="overwrite">覆盖</option>
               <option value="error">报错</option>
@@ -393,7 +401,7 @@
           <button type="button" class="btn btn-secondary" @click="$emit('close')">
             取消
           </button>
-          <button type="submit" class="btn" :disabled="saving">
+          <button type="submit" class="btn btn-primary" :disabled="saving">
             {{ saving ? '保存中...' : '保存配置' }}
           </button>
         </div>
