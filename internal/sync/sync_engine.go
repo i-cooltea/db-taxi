@@ -655,18 +655,9 @@ func (e *DefaultSyncEngine) createOrRecreateTargetTable(ctx context.Context, loc
 	// Build CREATE TABLE statement
 	createQuery := e.buildCreateTableStatement(localDB, tableName, schema)
 
-	// ======= 【添加下面这段代码来打印 SQL】 =======
-	fmt.Println("\n==========================================")
-	fmt.Printf("DEBUG: 准备在目标库执行的 SQL 语句如下：\n%s\n", createQuery)
-	fmt.Println("==========================================\n")
-	// =============================================
-
-	// ======= 核心修复代码开始 =======
-	// 将 SQL 中的 DEFAULT_GENERATED 替换为空格
+	// Fix DEFAULT_GENERATED (MySQL 8.0 puts this in EXTRA for expression defaults)
 	createQuery = strings.ReplaceAll(createQuery, "DEFAULT_GENERATED", "")
-	// 如果存在多个空格，可以简单处理一下（可选）
 	createQuery = strings.ReplaceAll(createQuery, "  ", " ")
-	// ======= 核心修复代码结束 =======
 
 	// Execute CREATE TABLE
 	if _, err := e.localDB.ExecContext(ctx, createQuery); err != nil {
@@ -703,7 +694,7 @@ func (e *DefaultSyncEngine) buildCreateTableStatement(localDB, tableName string,
 		}
 
 		if col.DefaultValue != "" {
-			sb.WriteString(fmt.Sprintf(" DEFAULT %s", col.DefaultValue))
+			sb.WriteString(fmt.Sprintf(" DEFAULT %s", quoteDefault(col.DefaultValue)))
 		}
 
 		if col.Extra != "" {
@@ -744,6 +735,46 @@ func (e *DefaultSyncEngine) buildCreateTableStatement(localDB, tableName string,
 	}
 
 	return sb.String()
+}
+
+// quoteDefault wraps a default value in single quotes if it isn't already quoted,
+// isn't a numeric literal, and isn't a SQL expression keyword (e.g. CURRENT_TIMESTAMP).
+// MySQL 5.7 returns datetime default values (e.g. "1970-01-01 08:00:00") without quotes
+// via INFORMATION_SCHEMA.COLUMNS, which produces invalid DDL if left bare.
+func quoteDefault(v string) string {
+	if v == "" {
+		return v
+	}
+	// Already quoted — just pass through
+	if v[0] == '\'' {
+		return v
+	}
+	// Numeric literal — no quoting needed
+	isNumeric := true
+	for _, c := range v {
+		if !((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+') {
+			isNumeric = false
+			break
+		}
+	}
+	if isNumeric {
+		return v
+	}
+	// SQL expression keywords (case-insensitive) — no quoting needed
+	keywords := []string{
+		"CURRENT_TIMESTAMP", "CURRENT_DATE", "CURRENT_TIME",
+		"LOCALTIME", "LOCALTIMESTAMP", "NOW",
+	}
+	upper := strings.ToUpper(v)
+	stripParens := strings.TrimSuffix(strings.TrimSuffix(upper, "()"), " ")
+	for _, kw := range keywords {
+		if stripParens == kw {
+			return v
+		}
+	}
+	// Everything else — wrap in single quotes, escaping any embedded single quotes
+	escaped := strings.ReplaceAll(v, "'", "''")
+	return "'" + escaped + "'"
 }
 
 // syncAllData synchronizes all data from source to target table
