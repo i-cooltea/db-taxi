@@ -56,6 +56,7 @@ type DataDiff struct {
 type ValueDiffEntry struct {
 	PrimaryKey  map[string]interface{} `json:"primary_key"`
 	Differences []ColumnValueDiff      `json:"differences"`
+	SourceRow   map[string]interface{} `json:"source_row"`
 }
 
 // ColumnValueDiff represents a single column value difference within a row.
@@ -286,6 +287,7 @@ func (e *DiffEngine) CompareData(ctx context.Context, sourceDB, targetDB *sqlx.D
 			diff.ValueDiff = append(diff.ValueDiff, ValueDiffEntry{
 				PrimaryKey:  pkMap(primaryKeys, row),
 				Differences: diffs,
+				SourceRow:   row,
 			})
 		}
 	}

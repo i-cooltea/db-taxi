@@ -1,12 +1,29 @@
 <template>
   <div>
     <!-- Page Header -->
+    <!-- Toast -->
+    <Toast :show="toast.show" :message="toast.message" :type="toast.type" @close="toast.show = false" />
+
     <div class="page-header">
       <h1>表对比</h1>
     </div>
 
     <!-- Selection Panel -->
     <div class="card">
+      <!-- Quick Config Selector -->
+      <div v-if="syncConfigs.length > 0" class="config-selector">
+        <label class="config-selector-label">
+          <List :size="16" />
+          <span>快速选择同步配置</span>
+        </label>
+        <select v-model="selectedConfigId" @change="onConfigChange" class="form-control config-select">
+          <option value="">-- 请选择同步配置 --</option>
+          <option v-for="cfg in syncConfigs" :key="cfg.id" :value="cfg.id">
+            {{ cfg.name }}
+          </option>
+        </select>
+      </div>
+
       <div class="selection-area">
         <!-- Source -->
         <div class="selection-panel">
@@ -172,6 +189,17 @@
             <span class="stat-label">部分对比</span>
             <span class="stat-value">{{ diffResult.data_diff.compared_rows }}/{{ diffResult.data_diff.total_rows }} 行</span>
           </div>
+          <div class="stat-item batch-action">
+            <button
+              class="btn btn-primary btn-sm"
+              :disabled="(diffResult.data_diff.value_diff?.length || 0) + (diffResult.data_diff.only_in_source?.length || 0) === 0"
+              @click="copyToClipboard(generateAllReplaceSQL())"
+              title="复制全部 REPLACE 语句"
+            >
+              <ClipboardList :size="16" />
+              <span>复制全部 REPLACE</span>
+            </button>
+          </div>
         </div>
 
         <!-- Value Diff -->
@@ -194,6 +222,7 @@
                   <th>差异列</th>
                   <th>源表值</th>
                   <th>目标表值</th>
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -204,6 +233,11 @@
                   </td>
                   <td class="text-error">{{ formatVal(entry.differences[0]?.source_value) }}</td>
                   <td class="text-success">{{ formatVal(entry.differences[0]?.target_value) }}</td>
+                  <td>
+                    <button class="btn btn-sm btn-secondary" title="复制 REPLACE 语句" @click="copyToClipboard(generateReplaceForValueDiff(entry))">
+                      <Copy :size="14" />
+                    </button>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -216,6 +250,9 @@
           <div class="row-cards">
             <div v-for="(row, idx) in diffResult.data_diff.only_in_source.slice(0, 10)" :key="idx" class="row-card source-only">
               <span v-for="(val, key) in row" :key="key" class="kv"><strong>{{ key }}:</strong> {{ formatVal(val) }}</span>
+              <button class="btn btn-sm btn-secondary card-copy-btn" title="复制 REPLACE 语句" @click="copyToClipboard(generateReplaceForOnlySource(row))">
+                <Copy :size="14" />
+              </button>
             </div>
           </div>
         </div>
@@ -242,8 +279,9 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { GitCompareArrows, ArrowRight, Loader2, Download, CheckCircle, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { GitCompareArrows, ArrowRight, Loader2, Download, CheckCircle, AlertTriangle, ChevronLeft, ChevronRight, Copy, ClipboardList, List } from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
+import Toast from '../components/Toast.vue'
 
 const store = useSyncStore()
 const connections = computed(() => store.connections)
@@ -262,6 +300,43 @@ const activeResultTab = ref('schema')
 
 const pageSize = 10
 const valueDiffPage = ref(1)
+
+const toast = ref({ show: false, message: '', type: 'success' })
+
+const selectedConfigId = ref('')
+const syncConfigs = computed(() => store.configs.filter(c => c.enabled))
+
+async function onConfigChange() {
+  if (!selectedConfigId.value) return
+  const config = store.configs.find(c => c.id === selectedConfigId.value)
+  if (!config) return
+
+  // Reset previous diff
+  diffResult.value = null
+  activeResultTab.value = 'schema'
+
+  // Fill source
+  source.value.connectionId = config.source_connection_id
+  await onSourceConnectionChange()
+  source.value.database = config.source_database
+  await onSourceDatabaseChange()
+  if (config.tables?.length > 0) {
+    source.value.table = config.tables[0].source_table
+  } else {
+    source.value.table = ''
+  }
+
+  // Fill target
+  target.value.connectionId = config.target_connection_id
+  await onTargetConnectionChange()
+  target.value.database = config.target_database
+  await onTargetDatabaseChange()
+  if (config.tables?.length > 0) {
+    target.value.table = config.tables[0].target_table
+  } else {
+    target.value.table = ''
+  }
+}
 
 const canCompare = computed(() =>
   source.value.connectionId && source.value.database && source.value.table &&
@@ -288,8 +363,88 @@ const paginatedValueDiff = computed(() => {
   return arr.slice(start, start + pageSize)
 })
 
+// --- REPLACE SQL utility functions ---
+
+function formatSQLValue(val) {
+  if (val === null || val === undefined) return 'NULL'
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val)
+  const escaped = String(val).replace(/'/g, "''")
+  return `'${escaped}'`
+}
+
+function buildReplaceSQL(cols, vals) {
+  const tableName = `\`${target.value.table}\``
+  const colList = cols.map(c => `\`${c}\``).join(', ')
+  const valList = vals.join(', ')
+  return `REPLACE INTO ${tableName} (${colList}) VALUES (${valList});`
+}
+
+function generateReplaceForValueDiff(entry) {
+  // Use the full source row to generate REPLACE with all columns
+  const row = entry.source_row
+  if (row) {
+    const cols = Object.keys(row)
+    const vals = cols.map(c => formatSQLValue(row[c]))
+    return buildReplaceSQL(cols, vals)
+  }
+  // Fallback: only PK + diff columns
+  const cols = []
+  const vals = []
+  const pkCols = new Set()
+
+  // PK columns
+  for (const [col, val] of Object.entries(entry.primary_key)) {
+    cols.push(col)
+    vals.push(formatSQLValue(val))
+    pkCols.add(col)
+  }
+
+  // Diff columns (use source value) — skip if already added as PK
+  for (const diff of entry.differences) {
+    if (!pkCols.has(diff.column)) {
+      cols.push(diff.column)
+      vals.push(formatSQLValue(diff.source_value))
+    }
+  }
+
+  return buildReplaceSQL(cols, vals)
+}
+
+function generateReplaceForOnlySource(row) {
+  const cols = Object.keys(row)
+  const vals = cols.map(c => formatSQLValue(row[c]))
+  return buildReplaceSQL(cols, vals)
+}
+
+function generateAllReplaceSQL() {
+  const lines = []
+  const data = diffResult.value?.data_diff
+  if (!data) return ''
+
+  // Value diff rows
+  for (const entry of data.value_diff || []) {
+    lines.push(generateReplaceForValueDiff(entry))
+  }
+
+  // Only in source rows
+  for (const row of data.only_in_source || []) {
+    lines.push(generateReplaceForOnlySource(row))
+  }
+
+  return lines.join('\n')
+}
+
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text)
+    toast.value = { show: true, message: 'REPLACE 语句已复制', type: 'success' }
+  } catch (e) {
+    toast.value = { show: true, message: '复制失败: ' + e.message, type: 'error' }
+  }
+}
+
 onMounted(() => {
-  if (store.connections.length === 0) store.fetchConnections()
+  if (store.configs.length === 0) store.fetchConfigs()
 })
 
 async function onSourceConnectionChange() {
@@ -412,6 +567,29 @@ function formatVal(v) {
 .page-header h1 {
   font-size: 24px;
   font-weight: 600;
+}
+
+.config-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.config-selector-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.config-select {
+  max-width: 400px;
 }
 
 .selection-area {
@@ -580,6 +758,15 @@ function formatVal(v) {
 
 .kv strong {
   color: var(--accent-primary);
+}
+
+.card-copy-btn {
+  margin-top: var(--space-2);
+}
+
+.batch-action {
+  margin-left: auto;
+  align-self: center;
 }
 
 .tag {
