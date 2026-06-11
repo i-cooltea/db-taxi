@@ -274,8 +274,17 @@
               </div>
 
               <div v-else class="table-list-compact">
-                <div 
-                  v-for="tableName in availableTables"
+                <!-- 搜索框 -->
+                <div class="table-search-wrapper">
+                  <input
+                    v-model="tableSearchKeyword"
+                    type="text"
+                    class="table-search-input"
+                    placeholder="搜索表名..."
+                  >
+                </div>
+                <div
+                  v-for="tableName in filteredTables"
                   :key="tableName"
                   class="table-item-compact"
                   :class="{ selected: isTableSelected(tableName), active: editingTable === tableName }"
@@ -290,6 +299,9 @@
                   <span v-if="isTableSelected(tableName)" class="table-mode-badge">
                     {{ getTableConfig(tableName).sync_mode === 'full' ? '全量' : '增量' }}
                   </span>
+                </div>
+                <div v-if="filteredTables.length === 0 && tableSearchKeyword" class="empty-state-compact">
+                  <p>没有匹配的表</p>
                 </div>
               </div>
 
@@ -458,6 +470,7 @@ const selectedTablesList = ref([])
 const editingTable = ref(null)
 const dragFromIndex = ref(null)
 const dragOverIndex = ref(null)
+const tableSearchKeyword = ref('')
 const currentTableConfig = ref({
   source_table: '',
   target_table: '',
@@ -492,6 +505,12 @@ const sourceConnection = computed(() =>
 const targetConnection = computed(() =>
   props.connections.find(c => c.config.id === formData.target_connection_id)
 )
+
+const filteredTables = computed(() => {
+  const keyword = tableSearchKeyword.value.trim().toLowerCase()
+  if (!keyword) return availableTables.value
+  return availableTables.value.filter(name => name.toLowerCase().includes(keyword))
+})
 
 onMounted(() => {
   if (props.config) {
@@ -695,7 +714,7 @@ function updateTableMode(tableName, syncMode) {
 }
 
 function selectAllTables() {
-  availableTables.value.forEach(tableName => {
+  filteredTables.value.forEach(tableName => {
     if (!isTableSelected(tableName)) {
       selectedTablesList.value.push({
         source_table: tableName,
@@ -995,6 +1014,34 @@ async function handleSubmit() {
   flex: 1;
   overflow-y: auto;
   padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+}
+
+.table-search-wrapper {
+  padding: 0 var(--space-0) var(--space-2);
+  flex-shrink: 0;
+}
+
+.table-search-input {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.table-search-input:focus {
+  border-color: var(--accent-primary);
+}
+
+.table-search-input::placeholder {
+  color: var(--text-tertiary);
 }
 
 .table-item-compact {
@@ -1006,6 +1053,7 @@ async function handleSubmit() {
   cursor: pointer;
   transition: all 0.2s;
   font-size: 13px;
+  flex-shrink: 0;
 }
 
 .table-item-compact:hover {
