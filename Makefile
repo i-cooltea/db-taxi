@@ -1,12 +1,13 @@
-.PHONY: help build run test migrate migrate-status migrate-version clean diagnose-jobs fix-jobs test-job-engine diagnose-engine build-frontend
+.PHONY: help build build-backend build-frontend run test migrate migrate-status migrate-version clean diagnose-jobs fix-jobs test-job-engine diagnose-engine
 
 # Default target
 help:
 	@echo "DB-Taxi Makefile"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  build              Build the application "
-	@echo " build-frontend     Build frontend and copy to static directory"
+	@echo "  build              Build backend + frontend"
+	@echo "  build-backend      Build the backend only"
+	@echo "  build-frontend     Build frontend and copy to static directory"
 	@echo "  run                Run the application"
 	@echo "  test               Run tests"
 	@echo "  test-job-engine    Test job engine startup"
@@ -29,11 +30,14 @@ help:
 	@echo "  make test-job-engine CONFIG=configs/config.yaml"
 	@echo "  make diagnose-engine"
 
-# Build the application
-build:
-	@echo "Building DB-Taxi..."
+# Build the backend only
+build-backend:
+	@echo "Building backend..."
 	go build -o db-taxi main.go
-	@echo "Build complete: ./db-taxi"
+	@echo "Backend build complete: ./db-taxi"
+
+# Build backend + frontend
+build: build-backend build-frontend
 
 # Run the application
 run:

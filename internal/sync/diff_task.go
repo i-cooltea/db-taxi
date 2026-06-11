@@ -32,9 +32,9 @@ type DiffTask struct {
 
 // DiffCompareRequest is the request body for POST /api/sync/diff/compare.
 type DiffCompareRequest struct {
-	Source DiffTableRef `json:"source" binding:"required"`
-	Target DiffTableRef `json:"target" binding:"required"`
-	MaxRows int64       `json:"max_rows,omitempty"`
+	Source  DiffTableRef `json:"source" binding:"required"`
+	Target  DiffTableRef `json:"target" binding:"required"`
+	MaxRows int64        `json:"max_rows,omitempty"`
 }
 
 // DiffTableRef identifies a table by connection + database + table name.

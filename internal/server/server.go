@@ -231,13 +231,13 @@ func (s *Server) registerRoutes() {
 				sync.GET("/stats", s.getSyncStats)
 
 				// Diff routes
-					diff := sync.Group("/diff")
-					{
-						diff.POST("/compare", s.startDiffCompare)
-						diff.GET("/:task_id", s.getDiffTask)
-					}
+				diff := sync.Group("/diff")
+				{
+					diff.POST("/compare", s.startDiffCompare)
+					diff.GET("/:task_id", s.getDiffTask)
+				}
 
-					// Config management routes
+				// Config management routes
 				sync.GET("/config/export", s.exportConfig)
 				sync.POST("/config/import", s.importConfig)
 				sync.POST("/config/validate", s.validateConfig)

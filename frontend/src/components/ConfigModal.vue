@@ -62,80 +62,99 @@
             </div>
           </div>
 
-          <div class="form-group">
-            <label for="source-connection">源连接（数据来源）*</label>
-            <select
-              id="source-connection"
-              class="form-control"
-              v-model="formData.source_connection_id"
-              required
-              @change="onSourceConnectionChange"
-            >
-              <option value="">请选择源数据库连接</option>
-              <option 
-                v-for="conn in connections" 
-                :key="conn.config.id"
-                :value="conn.config.id"
-              >
-                {{ conn.config.name }} ({{ conn.config.host }}:{{ conn.config.port }})
-              </option>
-            </select>
-            <small>选择数据来源的数据库连接</small>
-          </div>
+          <div class="connection-panels">
+            <!-- 源连接方框 -->
+            <div class="connection-panel connection-panel-source">
+              <div class="connection-panel-header">
+                <Database class="db-icon-source" :size="20" />
+                <span>数据来源</span>
+              </div>
+              <div class="form-group">
+                <label for="source-connection">源连接（数据来源）*</label>
+                <select
+                  id="source-connection"
+                  class="form-control"
+                  v-model="formData.source_connection_id"
+                  required
+                  @change="onSourceConnectionChange"
+                >
+                  <option value="">请选择源数据库连接</option>
+                  <option
+                    v-for="conn in connections"
+                    :key="conn.config.id"
+                    :value="conn.config.id"
+                  >
+                    {{ conn.config.name }} ({{ conn.config.host }}:{{ conn.config.port }})
+                  </option>
+                </select>
+                <small>选择数据来源的数据库连接</small>
+              </div>
+              <div class="form-group">
+                <label for="source-database">源数据库 *</label>
+                <select
+                  id="source-database"
+                  class="form-control"
+                  v-model="formData.source_database"
+                  required
+                  :disabled="!formData.source_connection_id || loadingDatabases"
+                  @change="onSourceDatabaseChange"
+                >
+                  <option value="">
+                    {{ loadingDatabases ? '加载数据库列表...' : '请选择源数据库' }}
+                  </option>
+                  <option v-for="db in availableDatabases" :key="db" :value="db">
+                    {{ db }}
+                  </option>
+                </select>
+                <small>选择要作为数据来源的数据库（选择源连接后会自动加载）</small>
+              </div>
+            </div>
 
-          <div class="form-group">
-            <label for="source-database">源数据库 *</label>
-            <select
-              id="source-database"
-              class="form-control"
-              v-model="formData.source_database"
-              required
-              :disabled="!formData.source_connection_id || loadingDatabases"
-              @change="onSourceDatabaseChange"
-            >
-              <option value="">
-                {{ loadingDatabases ? '加载数据库列表...' : '请选择源数据库' }}
-              </option>
-              <option v-for="db in availableDatabases" :key="db" :value="db">
-                {{ db }}
-              </option>
-            </select>
-            <small>选择要作为数据来源的数据库（选择源连接后会自动加载）</small>
-          </div>
+            <!-- 箭头 -->
+            <div class="connection-arrow">
+              <ArrowRight :size="28" />
+            </div>
 
-          <div class="form-group">
-            <label for="target-connection">目标连接（数据目标）*</label>
-            <select
-              id="target-connection"
-              class="form-control"
-              v-model="formData.target_connection_id"
-              required
-            >
-              <option value="">请选择目标数据库连接</option>
-              <option 
-                v-for="conn in connections" 
-                :key="conn.config.id"
-                :value="conn.config.id"
-              >
-                {{ conn.config.name }} ({{ conn.config.host }}:{{ conn.config.port }})
-              </option>
-            </select>
-            <small>选择数据同步到的目标数据库连接 </small>
-            <small>⚠️警告: 数据将会被覆盖 </small>
-          </div>
-
-          <div class="form-group">
-            <label for="target-database">目标数据库名称 *</label>
-            <input
-              id="target-database"
-              class="form-control"
-              v-model="formData.target_database"
-              type="text"
-              required
-              placeholder="默认与源数据库同名，可修改"
-              @input="targetDatabaseTouched = true"
-            >
-            <small>默认与源数据库同名；可修改。若目标数据库不存在，将自动创建（不会报错）。</small>
+            <!-- 目标连接方框 -->
+            <div class="connection-panel connection-panel-target">
+              <div class="connection-panel-header">
+                <Database class="db-icon-target" :size="20" />
+                <span>数据目标</span>
+              </div>
+              <div class="form-group">
+                <label for="target-connection">目标连接（数据目标）*</label>
+                <select
+                  id="target-connection"
+                  class="form-control"
+                  v-model="formData.target_connection_id"
+                  required
+                >
+                  <option value="">请选择目标数据库连接</option>
+                  <option
+                    v-for="conn in connections"
+                    :key="conn.config.id"
+                    :value="conn.config.id"
+                  >
+                    {{ conn.config.name }} ({{ conn.config.host }}:{{ conn.config.port }})
+                  </option>
+                </select>
+                <small>选择数据同步到的目标数据库连接</small>
+                <small style="color: var(--error);">⚠️ 警告：数据将会被覆盖</small>
+              </div>
+              <div class="form-group">
+                <label for="target-database">目标数据库名称 *</label>
+                <input
+                  id="target-database"
+                  class="form-control"
+                  v-model="formData.target_database"
+                  type="text"
+                  required
+                  placeholder="默认与源数据库同名，可修改"
+                  @input="targetDatabaseTouched = true"
+                >
+                <small>默认与源数据库同名；可修改。若目标数据库不存在，将自动创建（不会报错）。</small>
+              </div>
+            </div>
           </div>
 
           <div class="form-group">
@@ -1266,6 +1285,68 @@ async function handleSubmit() {
   gap: var(--space-4);
   justify-content: flex-end;
   margin-top: var(--space-5);
+}
+
+.connection-panels {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.connection-panel {
+  flex: 1;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.connection-panel-source {
+  border-color: var(--success);
+  border-width: 2px;
+}
+
+.connection-panel-target {
+  border-color: var(--accent-primary);
+  border-width: 2px;
+}
+
+.connection-panel-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+  font-size: 14px;
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-primary);
+  color: var(--text-primary);
+}
+
+.connection-panel .form-group {
+  margin-bottom: 0;
+}
+
+.connection-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  align-self: center;
+}
+
+@media (max-width: 768px) {
+  .connection-panels {
+    flex-direction: column;
+  }
+
+  .connection-arrow {
+    transform: rotate(90deg);
+  }
 }
 
 .sync-visual {
