@@ -760,16 +760,26 @@ func quoteDefault(v string) string {
 	if isNumeric {
 		return v
 	}
-	// SQL expression keywords (case-insensitive) — no quoting needed
+	// SQL expression keywords (case-insensitive) — no quoting needed.
+	// Handles both bare keywords (CURRENT_TIMESTAMP) and function-call forms
+	// with arguments: CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(6), NOW(3), etc.
 	keywords := []string{
 		"CURRENT_TIMESTAMP", "CURRENT_DATE", "CURRENT_TIME",
 		"LOCALTIME", "LOCALTIMESTAMP", "NOW",
 	}
 	upper := strings.ToUpper(v)
-	stripParens := strings.TrimSuffix(strings.TrimSuffix(upper, "()"), " ")
+	trimmed := strings.TrimSpace(upper)
 	for _, kw := range keywords {
-		if stripParens == kw {
+		// Exact match: CURRENT_TIMESTAMP
+		if trimmed == kw {
 			return v
+		}
+		// With arguments: CURRENT_TIMESTAMP(3), NOW(), etc.
+		if strings.HasPrefix(trimmed, kw) {
+			rest := strings.TrimPrefix(trimmed, kw)
+			if len(rest) > 0 && rest[0] == '(' && rest[len(rest)-1] == ')' {
+				return v
+			}
 		}
 	}
 	// Everything else — wrap in single quotes, escaping any embedded single quotes
