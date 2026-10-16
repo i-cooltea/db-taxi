@@ -33,20 +33,19 @@ vim config.yaml
 ./db-taxi -config /path/to/your/config.yaml
 ```
 
-#### 方式2: 使用命令行参数
+#### 方式2: 使用 Docker Compose
 ```bash
-./db-taxi -host localhost -port 3306 -user root -password secret -database mydb
+# 启动 DB-Taxi 及内置的 MySQL 实例
+docker-compose up -d
+
+# 查看日志
+docker-compose logs -f db-taxi
+
+# 停止服务
+docker-compose down
 ```
 
-#### 方式3: 使用环境变量
-```bash
-export DBT_DATABASE_HOST=localhost
-export DBT_DATABASE_PORT=3306
-export DBT_DATABASE_USERNAME=root
-export DBT_DATABASE_PASSWORD=secret
-export DBT_DATABASE_DATABASE=mydb
-./db-taxi
-```
+Web 界面访问地址：http://localhost:8080，内置 MySQL 暴露在 13306 端口。
 
 ### 2. 构建和运行
 

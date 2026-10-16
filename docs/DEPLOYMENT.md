@@ -9,9 +9,8 @@
 DB-Taxi 支持多种部署方式：
 
 1. **直接运行** - 适合开发和测试
-2. **Docker 部署** - 适合快速部署和隔离环境
-3. **Docker Compose** - 适合完整的应用栈部署
-4. **生产环境部署** - 适合生产环境的高可用部署
+2. **Docker Compose 部署** - 适合快速部署（内置 MySQL，开箱即用）
+3. **生产环境部署** - 适合生产环境的高可用部署
 
 ## 前置要求
 
@@ -95,14 +94,7 @@ export DBT_DATABASE_DATABASE=myapp
 ### 1.4 运行应用
 
 ```bash
-# 使用配置文件
 ./db-taxi -config config.yaml
-
-# 或使用命令行参数
-./db-taxi -host localhost -user dbuser -password secure_password -database myapp
-
-# 或使用环境变量
-./db-taxi
 ```
 
 ### 1.5 验证部署
@@ -115,26 +107,22 @@ curl http://localhost:8080/health
 open http://localhost:8080
 ```
 
-## 方式 2: Docker 部署
+## 方式 2: Docker Compose 部署
 
 ### 2.1 准备环境
 
-创建 `.env` 文件：
+方式 2 使用 Docker Compose 启动，默认包含内置的 MySQL 实例，无需额外准备数据库。
+
+Docker Compose 会自动读取项目根目录的 `.env` 文件进行变量替换（未配置的变量使用默认值），可从模板创建并按需修改：
 
 ```bash
 cp .env.example .env
 vim .env
 ```
 
-配置必要的环境变量：
+常用配置项：`APP_PORT`（Web 端口）、`MYSQL_*`（内置 MySQL 密码/账号/端口）、`DB_*`（应用数据库连接）、`LOG_*`（日志）、`SYNC_*`（同步系统）等，完整列表见 `.env.example`。
 
-```bash
-DB_HOST=your-mysql-host
-DB_PORT=3306
-DB_USERNAME=dbuser
-DB_PASSWORD=secure_password
-DB_DATABASE=myapp
-```
+注意：使用内置 MySQL 时 `DB_HOST` 应保持为 `mysql`，且 `DB_USERNAME` / `DB_PASSWORD` 需与 `MYSQL_*` 中配置的账号一致。即使不创建 `.env`，所有变量也有与当前 `docker-compose.yml` 一致的默认值，可直接启动。
 
 ### 2.2 使用部署脚本
 

@@ -755,8 +755,9 @@ async function handleSubmit() {
     return
   }
 
-  if (formData.source_connection_id === formData.target_connection_id) {
-    error.value = '源连接和目标连接不能相同'
+  if (formData.source_connection_id === formData.target_connection_id &&
+      formData.source_database === formData.target_database) {
+    error.value = '源连接和目标连接相同时，源数据库和目标数据库不能相同'
     return
   }
 

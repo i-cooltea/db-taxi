@@ -963,9 +963,6 @@ func (s *SyncManagerService) validateSyncConfig(config *SyncConfig) error {
 	if config.TargetConnectionID == "" {
 		return fmt.Errorf("target connection ID is required")
 	}
-	if config.SourceConnectionID == config.TargetConnectionID {
-		return fmt.Errorf("source and target connection IDs must be different")
-	}
 	if len(config.Tables) == 0 {
 		return fmt.Errorf("at least one table mapping is required")
 	}
@@ -975,6 +972,9 @@ func (s *SyncManagerService) validateSyncConfig(config *SyncConfig) error {
 	if config.TargetDatabase == "" {
 		// default target database to source database if not specified
 		config.TargetDatabase = config.SourceDatabase
+	}
+	if config.SourceConnectionID == config.TargetConnectionID && config.SourceDatabase == config.TargetDatabase {
+		return fmt.Errorf("source and target database must be different when using the same connection")
 	}
 
 	// Validate table mappings

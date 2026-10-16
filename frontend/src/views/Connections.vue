@@ -37,18 +37,76 @@
         <p>点击上方"添加连接"按钮创建第一个数据库连接</p>
       </div>
 
-      <!-- Connection Grid -->
-      <div v-else class="connections-grid">
-        <ConnectionCard
-          v-for="connection in connections"
-          :key="connection.config.id"
-          :connection="connection"
-          :testing="testingConnections.has(connection.config.id)"
-          @edit="editConnection"
-          @delete="confirmDelete"
-          @test="testConnectionStatus"
-        />
-      </div>
+      <template v-else>
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+          <input
+            v-model="filters.name"
+            type="text"
+            class="form-control filter-name"
+            placeholder="搜索连接名称..."
+          >
+          <button v-if="hasActiveFilters" class="btn btn-ghost filter-reset" @click="resetFilters">
+            <X :size="14" />
+            <span>重置</span>
+          </button>
+        </div>
+
+        <!-- No Matching Connections -->
+        <div v-if="filteredConnections.length === 0" class="empty-state">
+          <Search :size="48" class="empty-state-icon" />
+          <h3>没有匹配的连接</h3>
+          <p>请调整过滤条件后重试</p>
+        </div>
+
+        <!-- Connection Table -->
+        <div v-else class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>主机</th>
+                <th>数据库</th>
+                <th>用户名</th>
+                <th>状态</th>
+                <th style="width: 160px;">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="connection in filteredConnections" :key="connection.config.id">
+                <td class="font-medium">{{ connection.config.name }}</td>
+                <td>{{ connection.config.host }}:{{ connection.config.port }}</td>
+                <td>{{ connection.config.database || '-' }}</td>
+                <td>{{ connection.config.username }}</td>
+                <td>
+                  <span :class="['badge', statusClass(connection)]">
+                    {{ statusText(connection) }}
+                  </span>
+                </td>
+                <td>
+                  <div class="action-buttons">
+                    <button
+                      class="btn btn-sm btn-ghost"
+                      @click="testConnectionStatus(connection)"
+                      :disabled="testingConnections.has(connection.config.id)"
+                      title="测试连接"
+                    >
+                      <Loader2 v-if="testingConnections.has(connection.config.id)" :size="14" class="spin" />
+                      <Activity v-else :size="14" />
+                    </button>
+                    <button class="btn btn-sm btn-ghost" @click="editConnection(connection)" title="编辑">
+                      <Edit2 :size="14" />
+                    </button>
+                    <button class="btn btn-sm btn-ghost text-error" @click="confirmDelete(connection)" title="删除">
+                      <Trash2 :size="14" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
     </div>
 
     <!-- Modals -->
@@ -85,11 +143,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
-import { Plus, Plug, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-vue-next'
+import { Plus, Plug, AlertCircle, CheckCircle, AlertTriangle, Search, X, Loader2, Activity, Edit2, Trash2 } from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
-import ConnectionCard from '../components/ConnectionCard.vue'
 import ConnectionModal from '../components/ConnectionModal.vue'
 
 const syncStore = useSyncStore()
@@ -104,6 +161,29 @@ const editingConnection = ref(null)
 const deletingConnection = ref(null)
 const deleting = ref(false)
 const testingConnections = ref(new Set())
+const filters = ref({ name: '' })
+
+const hasActiveFilters = computed(() => filters.value.name.trim() !== '')
+
+const filteredConnections = computed(() => {
+  const keyword = filters.value.name.trim().toLowerCase()
+  if (!keyword) return connections.value
+  return connections.value.filter(c => c.config.name.toLowerCase().includes(keyword))
+})
+
+function resetFilters() {
+  filters.value.name = ''
+}
+
+function statusClass(connection) {
+  if (!connection.status) return 'badge-warning'
+  return connection.status.connected ? 'badge-success' : 'badge-error'
+}
+
+function statusText(connection) {
+  if (!connection.status) return '未知'
+  return connection.status.connected ? '已连接' : '未连接'
+}
 
 onMounted(async () => {
   try {
@@ -202,15 +282,41 @@ function closeModal() {
   gap: var(--space-4);
 }
 
-.connections-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: var(--space-4);
+.action-buttons {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.filter-name {
+  flex: 1 1 240px;
+}
+
+.filter-reset {
+  flex-shrink: 0;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 @media (max-width: 768px) {
-  .connections-grid {
-    grid-template-columns: 1fr;
+  .table-container {
+    margin: 0 calc(-1 * var(--space-4));
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
   }
 }
 </style>

@@ -33,20 +33,19 @@ vim config.yaml
 ./db-taxi -config /path/to/your/config.yaml
 ```
 
-#### Method 2: Using Command Line Arguments
+#### Method 2: Using Docker Compose
 ```bash
-./db-taxi -host localhost -port 3306 -user root -password secret -database mydb
+# Start DB-Taxi together with a bundled MySQL instance
+docker-compose up -d
+
+# View logs
+docker-compose logs -f db-taxi
+
+# Stop services
+docker-compose down
 ```
 
-#### Method 3: Using Environment Variables
-```bash
-export DBT_DATABASE_HOST=localhost
-export DBT_DATABASE_PORT=3306
-export DBT_DATABASE_USERNAME=root
-export DBT_DATABASE_PASSWORD=secret
-export DBT_DATABASE_DATABASE=mydb
-./db-taxi
-```
+The web interface is available at http://localhost:8080, and the bundled MySQL is exposed on port 13306.
 
 ### 2. Build and Run
 

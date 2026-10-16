@@ -214,6 +214,50 @@ func TestSyncManagerService_EnhancedValidation(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "same connection with different database",
+			config: &SyncConfig{
+				ID:                 uuid.New().String(),
+				SourceConnectionID: "conn-1",
+				TargetConnectionID: "conn-1",
+				SourceDatabase:     "source_db",
+				TargetDatabase:     "target_db",
+				Name:               "test-sync",
+				SyncMode:           SyncModeFull,
+				Enabled:            true,
+				Tables: []*TableMapping{
+					{
+						SourceTable: "source_table",
+						TargetTable: "target_table",
+						SyncMode:    SyncModeFull,
+						Enabled:     true,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "same connection with same database",
+			config: &SyncConfig{
+				ID:                 uuid.New().String(),
+				SourceConnectionID: "conn-1",
+				TargetConnectionID: "conn-1",
+				SourceDatabase:     "same_db",
+				TargetDatabase:     "same_db",
+				Name:               "test-sync",
+				SyncMode:           SyncModeFull,
+				Enabled:            true,
+				Tables: []*TableMapping{
+					{
+						SourceTable: "source_table",
+						TargetTable: "target_table",
+						SyncMode:    SyncModeFull,
+						Enabled:     true,
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
 			name: "invalid sync mode",
 			config: &SyncConfig{
 				ID:                 uuid.New().String(),
