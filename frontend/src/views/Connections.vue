@@ -66,7 +66,6 @@
               <tr>
                 <th>名称</th>
                 <th>主机</th>
-                <th>数据库</th>
                 <th>用户名</th>
                 <th>状态</th>
                 <th style="width: 160px;">操作</th>
@@ -76,7 +75,6 @@
               <tr v-for="connection in filteredConnections" :key="connection.config.id">
                 <td class="font-medium">{{ connection.config.name }}</td>
                 <td>{{ connection.config.host }}:{{ connection.config.port }}</td>
-                <td>{{ connection.config.database || '-' }}</td>
                 <td>{{ connection.config.username }}</td>
                 <td>
                   <span :class="['badge', statusClass(connection)]">
@@ -96,6 +94,9 @@
                     </button>
                     <button class="btn btn-sm btn-ghost" @click="editConnection(connection)" title="编辑">
                       <Edit2 :size="14" />
+                    </button>
+                    <button class="btn btn-sm btn-ghost" @click="copyConnection(connection)" title="复制">
+                      <Copy :size="14" />
                     </button>
                     <button class="btn btn-sm btn-ghost text-error" @click="confirmDelete(connection)" title="删除">
                       <Trash2 :size="14" />
@@ -145,7 +146,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
-import { Plus, Plug, AlertCircle, CheckCircle, AlertTriangle, Search, X, Loader2, Activity, Edit2, Trash2 } from 'lucide-vue-next'
+import { Plus, Plug, AlertCircle, CheckCircle, AlertTriangle, Search, X, Loader2, Activity, Edit2, Copy, Trash2 } from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
 import ConnectionModal from '../components/ConnectionModal.vue'
 
@@ -198,6 +199,12 @@ function editConnection(connection) {
   showEditModal.value = true
 }
 
+function copyConnection(connection) {
+  const { id, created_at, updated_at, ...rest } = connection.config
+  editingConnection.value = { config: { ...rest, name: `${connection.config.name} - 副本` } }
+  showAddModal.value = true
+}
+
 function confirmDelete(connection) {
   deletingConnection.value = connection
   showDeleteModal.value = true
@@ -240,7 +247,7 @@ async function testConnectionStatus(connection) {
 async function saveConnection(connectionData) {
   error.value = null
   try {
-    if (editingConnection.value) {
+    if (showEditModal.value && editingConnection.value) {
       await syncStore.updateConnection(editingConnection.value.config.id, connectionData)
       successMessage.value = '连接已成功更新'
     } else {
@@ -249,7 +256,7 @@ async function saveConnection(connectionData) {
     }
     closeModal()
   } catch (err) {
-    error.value = (editingConnection.value ? '更新' : '创建') + '连接失败: ' + err.message
+    error.value = (showEditModal.value ? '更新' : '创建') + '连接失败: ' + err.message
     throw err
   }
 }

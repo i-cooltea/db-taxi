@@ -1,120 +1,137 @@
 <template>
-  <div class="modal" @click.self="$emit('close')">
+  <div class="modal-overlay" @click.self="$emit('close')">
     <div class="modal-content">
       <div class="modal-header">
-        <h2>{{ connection ? '编辑数据库连接' : '添加数据库连接' }}</h2>
-        <span class="close" @click="$emit('close')">&times;</span>
+        <h2>{{ connection && connection.config.id ? '编辑数据库连接' : '添加数据库连接' }}</h2>
+        <button class="modal-close" @click="$emit('close')">&times;</button>
       </div>
 
-      <div v-if="error" class="alert alert-error">{{ error }}</div>
-
-      <form @submit.prevent="handleSubmit">
-        <div class="form-group">
-          <label for="name">连接名称 *</label>
-          <input 
-            id="name" 
-            v-model="formData.name" 
-            type="text" 
-            required
-            placeholder="例如: 生产数据库"
-          >
-          <small>为此连接指定一个易于识别的名称</small>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label for="host">主机地址 *</label>
-            <input 
-              id="host" 
-              v-model="formData.host" 
-              type="text" 
-              required
-              placeholder="例如: localhost 或 192.168.1.100"
-            >
+      <form @submit.prevent="handleSubmit" class="modal-form">
+        <div class="modal-body">
+          <div v-if="error" class="alert alert-error">
+            <AlertCircle :size="18" />
+            <span>{{ error }}</span>
           </div>
 
           <div class="form-group">
-            <label for="port">端口 *</label>
-            <input 
-              id="port" 
-              v-model.number="formData.port" 
-              type="number" 
+            <label for="name">连接名称 *</label>
+            <input
+              id="name"
+              v-model="formData.name"
+              type="text"
+              class="form-control"
               required
-              min="1"
-              max="65535"
-              placeholder="3306"
+              placeholder="例如: 生产数据库"
             >
+            <small>为此连接指定一个易于识别的名称</small>
           </div>
-        </div>
 
-        <div class="form-row">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="host">主机地址 *</label>
+              <input
+                id="host"
+                v-model="formData.host"
+                type="text"
+                class="form-control"
+                required
+                placeholder="例如: localhost 或 192.168.1.100"
+              >
+            </div>
+
+            <div class="form-group">
+              <label for="port">端口 *</label>
+              <input
+                id="port"
+                v-model.number="formData.port"
+                type="number"
+                class="form-control"
+                required
+                min="1"
+                max="65535"
+                placeholder="3306"
+              >
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="username">用户名 *</label>
+              <input
+                id="username"
+                v-model="formData.username"
+                type="text"
+                class="form-control"
+                required
+                placeholder="数据库用户名"
+              >
+            </div>
+
+            <div class="form-group">
+              <label for="password">密码 *</label>
+              <div class="password-wrapper">
+                <input
+                  id="password"
+                  v-model="formData.password"
+                  :type="showPassword ? 'text' : 'password'"
+                  class="form-control"
+                  required
+                  placeholder="数据库密码"
+                >
+                <button
+                  type="button"
+                  class="password-toggle"
+                  :title="showPassword ? '隐藏密码' : '显示密码'"
+                  @click="showPassword = !showPassword"
+                >
+                  <EyeOff v-if="showPassword" :size="16" />
+                  <Eye v-else :size="16" />
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div class="form-group">
-            <label for="username">用户名 *</label>
-            <input 
-              id="username" 
-              v-model="formData.username" 
-              type="text" 
-              required
-              placeholder="数据库用户名"
-            >
+            <label class="checkbox-label">
+              <input type="checkbox" v-model="formData.ssl">
+              <span>启用 SSL 连接</span>
+            </label>
+            <small>建议在生产环境中启用 SSL 以确保数据传输安全</small>
           </div>
 
-          <div class="form-group">
-            <label for="password">密码 *</label>
-            <input 
-              id="password" 
-              v-model="formData.password" 
-              :type="showPassword ? 'text' : 'password'"
-              required
-              placeholder="数据库密码"
-            >
-            <button 
-              type="button" 
-              class="password-toggle"
-              @click="showPassword = !showPassword"
-            >
-              {{ showPassword ? '👁️' : '👁️‍🗨️' }}
-            </button>
+          <div v-if="testResult" :class="['alert', testResult.success ? 'alert-success' : 'alert-error']">
+            <CheckCircle v-if="testResult.success" :size="18" />
+            <AlertCircle v-else :size="18" />
+            <span>
+              {{ testResult.success ? '连接成功' : '连接失败' }}
+              <template v-if="testResult.message"> - {{ testResult.message }}</template>
+              <template v-if="testResult.latency !== undefined && testResult.latency !== null"> (延迟: {{ testResult.latency }}ms)</template>
+            </span>
           </div>
         </div>
 
-        <div class="form-group">
-          <label class="checkbox-label">
-            <input type="checkbox" v-model="formData.ssl">
-            启用 SSL 连接
-          </label>
-          <small>建议在生产环境中启用 SSL 以确保数据传输安全</small>
-        </div>
-
-        <div class="form-actions">
+        <div class="modal-footer">
           <button type="button" class="btn btn-secondary" @click="$emit('close')">
             取消
           </button>
-          <button 
-            type="button" 
-            class="btn btn-secondary" 
-            @click="testConnection"
-            :disabled="testing"
-          >
-            {{ testing ? '测试中...' : '🔍 测试连接' }}
+          <button type="button" class="btn btn-secondary" :disabled="testing" @click="testConnection">
+            <Loader2 v-if="testing" :size="14" class="spin" />
+            <Activity v-else :size="14" />
+            <span>{{ testing ? '测试中...' : '测试连接' }}</span>
           </button>
-          <button type="submit" class="btn" :disabled="saving">
-            {{ saving ? '保存中...' : '保存' }}
+          <button type="submit" class="btn btn-primary" :disabled="saving">
+            <Loader2 v-if="saving" :size="14" class="spin" />
+            <span>{{ saving ? '保存中...' : '保存' }}</span>
           </button>
         </div>
       </form>
-
-      <div v-if="testResult" class="test-result" :class="testResult.success ? 'success' : 'error'">
-        <strong>{{ testResult.success ? '✅ 连接成功' : '❌ 连接失败' }}</strong>
-        <p v-if="testResult.message">{{ testResult.message }}</p>
-        <p v-if="testResult.latency">延迟: {{ testResult.latency }}ms</p>
-      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { Eye, EyeOff, Activity, Loader2, CheckCircle, AlertCircle } from 'lucide-vue-next'
 
 const props = defineProps({
   connection: {
@@ -157,7 +174,7 @@ async function testConnection() {
   try {
     // Create a temporary connection config for testing
     const testConfig = { ...formData }
-    
+
     const response = await fetch('/api/sync/connections/test', {
       method: 'POST',
       headers: {
@@ -195,7 +212,7 @@ async function handleSubmit() {
   testResult.value = null
 
   // Validate required fields（数据库名称不再在连接层面必填）
-  if (!formData.name || !formData.host || 
+  if (!formData.name || !formData.host ||
       !formData.username || !formData.password) {
     error.value = '请填写所有必填字段'
     return
@@ -213,126 +230,80 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
-.modal {
-  position: fixed;
-  z-index: 1000;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0,0,0,0.5);
-  animation: fadeIn 0.3s;
-  overflow-y: auto;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.modal-content {
-  background-color: white;
-  margin: 2% auto;
-  padding: 2rem;
-  border-radius: 10px;
-  width: 90%;
-  max-width: 700px;
-  animation: slideIn 0.3s;
-}
-
-@keyframes slideIn {
-  from { transform: translateY(-50px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-.modal-header {
+.modal-form {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.modal-header h2 {
-  color: #667eea;
-  margin: 0;
-}
-
-.close {
-  color: #aaa;
-  font-size: 28px;
-  font-weight: bold;
-  cursor: pointer;
-  line-height: 1;
-}
-
-.close:hover {
-  color: #000;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  gap: var(--space-4);
 }
 
-.form-group {
+.form-group small {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.password-wrapper {
   position: relative;
+}
+
+.password-wrapper .form-control {
+  padding-right: 40px;
 }
 
 .password-toggle {
   position: absolute;
-  right: 10px;
-  top: 38px;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
+  padding: var(--space-1);
   cursor: pointer;
-  font-size: 1.2rem;
-  padding: 0;
+  color: var(--text-tertiary);
+  transition: color var(--transition-fast);
 }
 
-.form-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  margin-top: 2rem;
+.password-toggle:hover {
+  color: var(--text-primary);
 }
 
 .checkbox-label {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   cursor: pointer;
+  margin-bottom: 0;
 }
 
 .checkbox-label input[type="checkbox"] {
   width: auto;
+  accent-color: var(--accent-primary);
 }
 
-.test-result {
-  margin-top: 1.5rem;
-  padding: 1rem;
-  border-radius: 5px;
-  animation: slideIn 0.3s;
+.spin {
+  animation: spin 1s linear infinite;
 }
 
-.test-result.success {
-  background: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
-.test-result.error {
-  background: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
-}
-
-.test-result strong {
-  display: block;
-  margin-bottom: 0.5rem;
-}
-
-.test-result p {
-  margin: 0.25rem 0;
+@media (max-width: 560px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
