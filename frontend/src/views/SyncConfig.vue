@@ -43,61 +43,96 @@
         <p>点击上方"创建配置"按钮开始配置数据库同步</p>
       </div>
 
-      <!-- Config Table -->
-      <div v-else class="table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>名称</th>
-              <th>源连接</th>
-              <th>目标连接</th>
-              <th>同步模式</th>
-              <th>表数量</th>
-              <th>计划</th>
-              <th>状态</th>
-              <th style="width: 200px;">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="config in store.configs" :key="config.id">
-              <td class="font-medium">{{ config.name }}</td>
-              <td>{{ getConnection(config.source_connection_id)?.config.name || 'Unknown' }}</td>
-              <td>{{ getConnection(config.target_connection_id)?.config.name || 'Unknown' }}</td>
-              <td>
-                <span :class="['badge', config.sync_mode === 'full' ? 'badge-info' : 'badge-success']">
-                  {{ config.sync_mode === 'full' ? '全量同步' : '增量同步' }}
-                </span>
-              </td>
-              <td>{{ config.tables ? config.tables.length : 0 }} 个表</td>
-              <td class="text-secondary">{{ config.schedule || '-' }}</td>
-              <td>
-                <span :class="['badge', config.enabled ? 'badge-success' : 'badge-error']">
-                  {{ config.enabled ? '已启用' : '已禁用' }}
-                </span>
-              </td>
-              <td>
-                <div class="action-buttons">
-                  <button class="btn btn-sm btn-ghost" @click="startSync(config)" title="启动同步">
-                    <Play :size="14" />
-                  </button>
-                  <button class="btn btn-sm btn-ghost" @click="viewTables(config)" title="查看表">
-                    <List :size="14" />
-                  </button>
-                  <button class="btn btn-sm btn-ghost" @click="editConfig(config)" title="编辑">
-                    <Edit2 :size="14" />
-                  </button>
-                  <button class="btn btn-sm btn-ghost" @click="copyConfig(config)" title="复制">
-                    <Copy :size="14" />
-                  </button>
-                  <button class="btn btn-sm btn-ghost text-error" @click="deleteConfig(config)" title="删除">
-                    <Trash2 :size="14" />
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <template v-else>
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+          <input
+            v-model="filters.name"
+            type="text"
+            class="form-control filter-name"
+            placeholder="搜索配置名称..."
+          >
+          <select v-model="filters.sourceConnectionId" class="form-control filter-select">
+            <option value="">全部源连接</option>
+            <option v-for="conn in store.connections" :key="conn.config.id" :value="conn.config.id">
+              {{ conn.config.name }}
+            </option>
+          </select>
+          <select v-model="filters.targetConnectionId" class="form-control filter-select">
+            <option value="">全部目标连接</option>
+            <option v-for="conn in store.connections" :key="conn.config.id" :value="conn.config.id">
+              {{ conn.config.name }}
+            </option>
+          </select>
+          <button v-if="hasActiveFilters" class="btn btn-ghost filter-reset" @click="resetFilters">
+            <X :size="14" />
+            <span>重置</span>
+          </button>
+        </div>
+
+        <!-- No Matching Configs -->
+        <div v-if="filteredConfigs.length === 0" class="empty-state">
+          <Search :size="48" class="empty-state-icon" />
+          <h3>没有匹配的同步配置</h3>
+          <p>请调整过滤条件后重试</p>
+        </div>
+
+        <!-- Config Table -->
+        <div v-else class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>源连接</th>
+                <th>目标连接</th>
+                <th>同步模式</th>
+                <th>表数量</th>
+                <th>计划</th>
+                <th>状态</th>
+                <th style="width: 200px;">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="config in filteredConfigs" :key="config.id">
+                <td class="font-medium">{{ config.name }}</td>
+                <td>{{ getConnection(config.source_connection_id)?.config.name || 'Unknown' }}</td>
+                <td>{{ getConnection(config.target_connection_id)?.config.name || 'Unknown' }}</td>
+                <td>
+                  <span :class="['badge', config.sync_mode === 'full' ? 'badge-info' : 'badge-success']">
+                    {{ config.sync_mode === 'full' ? '全量同步' : '增量同步' }}
+                  </span>
+                </td>
+                <td>{{ config.tables ? config.tables.length : 0 }} 个表</td>
+                <td class="text-secondary">{{ config.schedule || '-' }}</td>
+                <td>
+                  <span :class="['badge', config.enabled ? 'badge-success' : 'badge-error']">
+                    {{ config.enabled ? '已启用' : '已禁用' }}
+                  </span>
+                </td>
+                <td>
+                  <div class="action-buttons">
+                    <button class="btn btn-sm btn-ghost" @click="startSync(config)" title="启动同步">
+                      <Play :size="14" />
+                    </button>
+                    <button class="btn btn-sm btn-ghost" @click="viewTables(config)" title="查看表">
+                      <List :size="14" />
+                    </button>
+                    <button class="btn btn-sm btn-ghost" @click="editConfig(config)" title="编辑">
+                      <Edit2 :size="14" />
+                    </button>
+                    <button class="btn btn-sm btn-ghost" @click="copyConfig(config)" title="复制">
+                      <Copy :size="14" />
+                    </button>
+                    <button class="btn btn-sm btn-ghost text-error" @click="deleteConfig(config)" title="删除">
+                      <Trash2 :size="14" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
     </div>
 
     <!-- Modals -->
@@ -118,8 +153,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { RefreshCw, Plus, Play, Edit2, Copy, Trash2, List, AlertCircle, CheckCircle } from 'lucide-vue-next'
+import { ref, computed, onMounted } from 'vue'
+import { RefreshCw, Plus, Play, Edit2, Copy, Trash2, List, AlertCircle, CheckCircle, Search, X } from 'lucide-vue-next'
 import { useSyncStore } from '../stores/syncStore'
 import ConfigModal from '../components/ConfigModal.vue'
 import TableMappingsModal from '../components/TableMappingsModal.vue'
@@ -132,6 +167,32 @@ const error = ref(null)
 const successMessage = ref(null)
 const showTablesModal = ref(false)
 const viewingConfig = ref(null)
+
+const filters = ref({
+  name: '',
+  sourceConnectionId: '',
+  targetConnectionId: ''
+})
+
+const hasActiveFilters = computed(() =>
+  filters.value.name.trim() !== '' ||
+  filters.value.sourceConnectionId !== '' ||
+  filters.value.targetConnectionId !== ''
+)
+
+const filteredConfigs = computed(() => {
+  const keyword = filters.value.name.trim().toLowerCase()
+  return store.configs.filter(config => {
+    if (keyword && !config.name.toLowerCase().includes(keyword)) return false
+    if (filters.value.sourceConnectionId && config.source_connection_id !== filters.value.sourceConnectionId) return false
+    if (filters.value.targetConnectionId && config.target_connection_id !== filters.value.targetConnectionId) return false
+    return true
+  })
+})
+
+function resetFilters() {
+  filters.value = { name: '', sourceConnectionId: '', targetConnectionId: '' }
+}
 
 onMounted(async () => {
   await store.fetchConfigs()
@@ -236,6 +297,25 @@ function closeTablesModal() {
 .action-buttons {
   display: flex;
   gap: var(--space-1);
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.filter-name {
+  flex: 1 1 240px;
+}
+
+.filter-select {
+  flex: 0 1 220px;
+}
+
+.filter-reset {
+  flex-shrink: 0;
 }
 
 @media (max-width: 768px) {
